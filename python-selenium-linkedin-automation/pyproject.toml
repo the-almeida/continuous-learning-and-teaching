@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linkedin-automation"
+version = "0.1.0"
+description = "LinkedIn automation using Python and Selenium"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["selenium", "linkedin", "automation"]
+authors = [
+  { name = "Gustavo Almeida", email = "gustavo.s.p.almeida@gmail.com" },
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+AuthorWebsite = "https://thealmeida.online"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["linkedin_automation*"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N"]
+ignore = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"
+
