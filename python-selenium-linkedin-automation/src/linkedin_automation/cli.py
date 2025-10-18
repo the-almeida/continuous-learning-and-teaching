@@ -43,7 +43,8 @@ if TyperApp is not None:
         settings = _build_settings()
         logger.info("browser=%s headless=%s", settings.browser, settings.headless)
         logger.info("timeouts: page_load=%ss slowmo=%sms", settings.page_load_timeout_sec, settings.slowmo_ms)
-        print("Hi Gus, the information above looks good? If yes, let's get this project started!")
+        name = input("What's your name? ")
+        print(f"Hi {name}, the information above looks good? If yes, let's get this project started!")
 
 else:
 
@@ -65,7 +66,8 @@ else:
             logger.info(
                 "timeouts: page_load=%ss slowmo=%sms", settings.page_load_timeout_sec, settings.slowmo_ms
             )
-            print("Hi Gus, the information above looks good? If yes, let's get this project started!")
+            name = input("What's your name?")
+            print(f"Hi {name}, the information above looks good? If yes, let's get this project started!")
         else:
             parser.print_help()
 
