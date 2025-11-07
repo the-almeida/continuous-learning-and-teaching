@@ -1,94 +1,105 @@
-import Image from "next/image";
 import styles from "./page.module.css";
 
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+    <div className={styles.container}>
+      {/* Navigation */}
+      <nav className={styles.nav}>
+        <div className={styles.navContent}>
+          <div className={styles.logo}>CoopEra</div>
+          <button className={styles.ctaButton}>Criar conta gratuita</button>
         </div>
-      </main>
+      </nav>
+
+      {/* Hero Section */}
+      <section className={styles.hero}>
+        <div className={styles.heroContent}>
+          <h1 className={styles.heroTitle}>
+            Compras coletivas que{" "}
+            <span className={styles.highlight}>transformam</span> sua
+            comunidade
+          </h1>
+          <p className={styles.heroDescription}>
+            Ajude líderes comunitários a gerenciar compras coletivas,
+            permitindo que membros da comunidade comprem itens a preços mais
+            baixos do que nas lojas normais, com entrega direto na porta de
+            casa através de um sistema de entrega local.
+          </p>
+          <div className={styles.heroCta}>
+            <button className={styles.ctaButtonLarge}>Criar conta gratuita</button>
+            <button className={styles.secondaryButton}>Saiba mais</button>
+          </div>
+        </div>
+        <div className={styles.heroVisual}>
+          <div className={styles.gradientBlob}></div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className={styles.benefits}>
+        <div className={styles.benefitsContent}>
+          <h2 className={styles.sectionTitle}>
+            Por que escolher o CoopEra?
+          </h2>
+          <div className={styles.benefitsGrid}>
+            <div className={styles.benefitCard}>
+              <div className={styles.benefitIcon}>💰</div>
+              <h3 className={styles.benefitTitle}>Economia Real</h3>
+              <p className={styles.benefitDescription}>
+                Compre itens a preços significativamente mais baixos do que nas
+                lojas tradicionais através do poder das compras coletivas.
+              </p>
+            </div>
+            <div className={styles.benefitCard}>
+              <div className={styles.benefitIcon}>🏠</div>
+              <h3 className={styles.benefitTitle}>Entrega na Porta</h3>
+              <p className={styles.benefitDescription}>
+                Receba seus produtos diretamente em casa através do nosso
+                sistema de entrega local, sem sair de casa.
+              </p>
+            </div>
+            <div className={styles.benefitCard}>
+              <div className={styles.benefitIcon}>🤝</div>
+              <h3 className={styles.benefitTitle}>Comunidade Forte</h3>
+              <p className={styles.benefitDescription}>
+                Fortaleça os laços comunitários enquanto economiza juntos,
+                criando uma rede de apoio local.
+              </p>
+            </div>
+            <div className={styles.benefitCard}>
+              <div className={styles.benefitIcon}>📱</div>
+              <h3 className={styles.benefitTitle}>Fácil de Usar</h3>
+              <p className={styles.benefitDescription}>
+                Interface intuitiva para líderes gerenciarem compras coletivas
+                e membros participarem com apenas alguns cliques.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className={styles.ctaSection}>
+        <div className={styles.ctaSectionContent}>
+          <h2 className={styles.ctaTitle}>
+            Pronto para transformar sua comunidade?
+          </h2>
+          <p className={styles.ctaDescription}>
+            Comece agora e veja como as compras coletivas podem beneficiar
+            todos na sua comunidade.
+          </p>
+          <button className={styles.ctaButtonLarge}>Criar conta gratuita</button>
+        </div>
+      </section>
+
+      {/* Footer */}
       <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+        <div className={styles.footerContent}>
+          <div className={styles.footerLogo}>CoopEra</div>
+          <p className={styles.footerText}>
+            Transformando comunidades através de compras coletivas
+          </p>
+        </div>
       </footer>
     </div>
   );
