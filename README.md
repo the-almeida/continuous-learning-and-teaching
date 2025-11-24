@@ -1,2 +1,2 @@
 # continuous-learning-and-teaching
-Aggregator repositoy. Here I add all the code written while studying or teaching programming.
+Aggregator repositoy started on 2025. Here I add all the code written while studying or teaching programming.
