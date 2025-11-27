@@ -8,10 +8,11 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watchAll"
   },
   "dependencies": {
     "next": "^15.5.2",
+    "pg": "^8.16.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
