@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "npm run services:up && next dev --turbopack",
+    "services:up": "docker compose -f infra/docker-compose.yml up -d",
+    "services:down": "docker compose -f infra/docker-compose.yml down",
+    "services:stop": "docker compose -f infra/docker-compose.yml stop",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
