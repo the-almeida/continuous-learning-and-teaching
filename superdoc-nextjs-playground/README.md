@@ -2,7 +2,9 @@
 
 This application is a playground to try out [SuperDoc](https://https://www.superdoc.dev) with [Next.js](https://nextjs.org). This project goal is to display my CV and experiment with SuperDoc configs.
 
-## Getting Started
+#### Here it is the live demo link: https://superdoc.thealmeida.online/
+
+## Running it locally
 
 First, run the development server:
 
@@ -16,4 +18,4 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000/](http://localhost:3000/) with your browser to see my CV.
+Open [http://localhost:3000/](http://localhost:3000/) with your browser ad you should see my CV.
