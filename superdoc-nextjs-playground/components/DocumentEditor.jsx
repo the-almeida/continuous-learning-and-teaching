@@ -10,23 +10,33 @@ function DocumentEditorComponent({ document }) {
   const superdocRef = useRef(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initEditor = async () => {
       const { SuperDoc } = await import("@harbour-enterprises/superdoc");
 
-      if (containerRef.current) {
-        superdocRef.current = new SuperDoc({
-          selector: containerRef.current,
-          document,
-        });
-      }
+      if (!isMounted || !containerRef.current) return;
+
+      superdocRef.current = new SuperDoc({
+        selector: containerRef.current,
+        document,
+      });
     };
 
     initEditor();
 
     return () => {
+      isMounted = false;
+
+      if (superdocRef.current?.destroy) {
+        superdocRef.current.destroy();
+      } else if (superdocRef.current?.unmount) {
+        superdocRef.current.unmount();
+      }
+
       superdocRef.current = null;
     };
-  }, [document]);
+  }, []);
 
   return <div ref={containerRef} style={{ height: "700px" }} />;
 }
