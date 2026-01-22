@@ -16,6 +16,8 @@ async function query(queryObject) {
   return result;
 }
 
-export default {
+const database = {
   query: query,
 };
+
+export default database;
