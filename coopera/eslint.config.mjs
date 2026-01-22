@@ -10,7 +10,26 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      ".git/**",
+      "dist/**",
+      "next-env.d.ts",
+    ],
+  },
+  ...compat.extends(
+    "next",
+    "next/core-web-vitals",
+    "next/typescript",
+    "prettier",
+  ),
+  {
+    rules: {
+      "react/no-unescaped-entities": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
