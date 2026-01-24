@@ -13,6 +13,7 @@
     "test:watch": "jest --watchAll",
     "lint:prettier:check": "prettier --check .",
     "lint:prettier:fix": "prettier --write .",
+    "lint:eslint:check": "npx eslint .",
     "lint:eslint:fix": "npx eslint . --fix"
   },
   "dependencies": {
@@ -22,7 +23,6 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -31,9 +31,11 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "15.3.2",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jest": "^29.12.1",
     "eslint-plugin-prettier": "^5.5.5",
     "jest": "^30.2.0",
     "prettier": "^3.8.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.53.1"
   }
 }
