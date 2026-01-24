@@ -22,5 +22,5 @@
   "editor.wordWrap": "on",
 
   "problems.showCurrentInStatus": true,
-  "problems.decorations.enabled": true,
+  "problems.decorations.enabled": true
 }
