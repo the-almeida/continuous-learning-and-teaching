@@ -6,6 +6,8 @@ App created to help community leaders to manage collective purchasing allowing c
 
 This project was created using `create-next-app`, and the default setup for App Router, Typescript, and EsLint.
 
+#### Important Scripts:
+
 Install dependencies:
 
 ```bash
@@ -22,18 +24,35 @@ npm run dev
 yarn dev
 ```
 
+Run Tests:
+
+```bash
+npm run test
+npm run test:watch
+# or
+yarn test
+yarn test:watch
+```
+
 Build:
 
 ```bash
 npm run build
 # or
-yarn dev
+yarn build
 ```
 
 Lint:
 
 ```bash
-npm run build
+npm run lint:prettier:check
+npm run lint:prettier:fix
+npm run lint:eslint:check
+npm run lint:eslint:fix
+
 # or
-yarn dev
+yarn lint:prettier:check
+yarn lint:prettier:fix
+yarn lint:eslint:check
+yarn lint:eslint:fix
 ```
