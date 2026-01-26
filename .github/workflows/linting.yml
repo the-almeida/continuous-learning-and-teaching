@@ -40,9 +40,6 @@ jobs:
   commitlint:
     name: Commitlint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: coopera
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -50,7 +47,5 @@ jobs:
       - uses: actions/setup-node@v6.2.0
         with:
           node-version: "lts/hydrogen"
-          cache: npm
-          cache-dependency-path: coopera/package-lock.json
       - run: npm ci
       - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
