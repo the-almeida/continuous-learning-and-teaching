@@ -1,0 +1,25 @@
+name: "CoopEra Automated Tests"
+
+on: 
+  pull_request:
+    paths:
+      - "coopera/**"
+      - ".github/workflows/**"
+
+jobs:
+  jest:
+    name: "Jest Ubuntu"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: coopera
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.2.0
+        with:
+          node-version: "lts/hydrogen"
+          cache: npm
+          cache-dependency-path: coopera/package-lock.json
+      - run: npm ci
+      - run: npm test
