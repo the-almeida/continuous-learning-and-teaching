@@ -6,6 +6,9 @@ App created to help community leaders to manage collective purchasing allowing c
 
 This project was created using `create-next-app`, and the default setup for App Router, Typescript, and EsLint.
 
+Since this project lives inside the `continuous-learning-and-teaching` monorepo, all `.github` resources (CI/CD workflows and Dependabot configuration) are defined at the repository root (`../.github`).
+``
+
 #### Important Scripts:
 
 Install dependencies:
