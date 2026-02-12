@@ -1,10 +1,9 @@
-import db from "@/infra/database.js";
-
 export async function GET() {
-  const result = await db.query("SELECT 1 + 1");
-  console.log(result.rows);
+  const updatedAt = new Date().toISOString();
   return Response.json({
+    updated_at: updatedAt,
     isOnline: true,
-    "Do you speak Portuguese?": "Claro mermão, mais específicamente em UTF-8",
+    "Do you speak Portuguese?":
+      "Claro mermão, mais especificamente (smileIfYouReadThis highlighted because of a PT-BR typo) em UTF-8",
   });
 }
