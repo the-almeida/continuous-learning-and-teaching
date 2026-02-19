@@ -1,5 +1,26 @@
 {
   "typescript.tsdk": "node_modules/typescript/lib",
+
+  "eslint.enable": true,
+  "eslint.run": "onSave",
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true
+  "prettier.ignorePath": ".prettierignore",
+
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always",
+    "source.organizeImports": "always"
+  },
+  "editor.formatOnSave": true,
+  "editor.rulers": [80, 120],
+  "editor.wordWrap": "on",
+
+  "problems.showCurrentInStatus": true,
+  "problems.decorations.enabled": true
 }
