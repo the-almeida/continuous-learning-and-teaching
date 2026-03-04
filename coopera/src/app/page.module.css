@@ -5,7 +5,9 @@
   transition: background-color 0.3s ease;
 }
 
-/* Hero Section */
+/* ─────────────────────────────────────────────
+   WHY — Hero Section
+   ───────────────────────────────────────────── */
 .hero {
   min-height: 100vh;
   display: flex;
@@ -21,8 +23,22 @@
 
 .heroContent {
   flex: 1;
-  max-width: 600px;
+  max-width: 620px;
   z-index: 1;
+}
+
+.whyLabel {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 20px;
+  background: rgba(255, 107, 53, 0.1);
+  padding: 6px 16px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 107, 53, 0.25);
 }
 
 .heroTitle {
@@ -50,6 +66,13 @@
   max-width: 540px;
 }
 
+.heroActions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .ctaButton {
   display: inline-block;
   padding: 18px 40px;
@@ -66,6 +89,24 @@
 .ctaButton:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 30px rgba(255, 107, 53, 0.4);
+}
+
+.secondaryButton {
+  display: inline-block;
+  padding: 18px 32px;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 1.125rem;
+  border-radius: 50px;
+  border: 2px solid var(--primary);
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.secondaryButton:hover {
+  background: rgba(255, 107, 53, 0.08);
+  transform: translateY(-2px);
 }
 
 .heroVisual {
@@ -129,55 +170,143 @@
   }
 }
 
-/* Value Proposition Section */
-.valueProp {
-  padding: 100px 80px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+/* ─────────────────────────────────────────────
+   Shared Section Labels & Titles
+   ───────────────────────────────────────────── */
+.sectionLabel {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 16px;
+  background: rgba(255, 107, 53, 0.1);
+  padding: 6px 16px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 107, 53, 0.25);
 }
 
-.valuePropContent {
-  max-width: 900px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.valuePropTitle {
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 700;
-  margin-bottom: 24px;
-  color: var(--foreground);
-  line-height: 1.2;
-}
-
-.valuePropText {
-  font-size: clamp(1.125rem, 2vw, 1.25rem);
-  color: var(--foreground-secondary);
-  line-height: 1.8;
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-/* Features Section */
-.features {
-  padding: 100px 80px;
-  max-width: 1400px;
-  margin: 0 auto;
+.sectionLabelLight {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 6px 16px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .sectionTitle {
   font-size: clamp(2rem, 4vw, 2.75rem);
   font-weight: 700;
   text-align: center;
-  margin-bottom: 60px;
+  margin-bottom: 20px;
   color: var(--foreground);
+}
+
+.sectionSubtitle {
+  font-size: clamp(1.125rem, 2vw, 1.25rem);
+  color: var(--foreground-secondary);
+  line-height: 1.8;
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* ─────────────────────────────────────────────
+   HOW — Approach / Pillars Section
+   ───────────────────────────────────────────── */
+.howSection {
+  padding: 100px 80px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.howContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.pillarsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  margin-top: 60px;
+}
+
+.pillarCard {
+  padding: 48px 32px;
+  background: var(--background);
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.pillarCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.pillarCard:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 48px var(--shadow);
+  border-color: var(--primary);
+}
+
+.pillarCard:hover::before {
+  opacity: 1;
+}
+
+.pillarIcon {
+  font-size: 56px;
+  margin-bottom: 24px;
+  display: block;
+}
+
+.pillarTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--foreground);
+}
+
+.pillarText {
+  font-size: 1.0625rem;
+  color: var(--foreground-secondary);
+  line-height: 1.7;
+}
+
+/* ─────────────────────────────────────────────
+   WHAT — Features Section
+   ───────────────────────────────────────────── */
+.features {
+  padding: 100px 80px;
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .featuresGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 32px;
+  gap: 28px;
   margin-top: 60px;
 }
 
@@ -203,7 +332,7 @@
 }
 
 .featureTitle {
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--foreground);
@@ -215,31 +344,206 @@
   line-height: 1.6;
 }
 
-/* Benefits Section */
-.benefits {
+/* ─────────────────────────────────────────────
+   Promotional Offers Section
+   ───────────────────────────────────────────── */
+.offersSection {
+  padding: 100px 80px;
+  background: var(--gradient-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.offersSection::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 600px;
+  height: 600px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.offersSection::after {
+  content: "";
+  position: absolute;
+  bottom: -30%;
+  left: -5%;
+  width: 400px;
+  height: 400px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.offersContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.offersSectionTitle {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.offersSectionSubtitle {
+  font-size: clamp(1.0625rem, 2vw, 1.1875rem);
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.8;
+  max-width: 620px;
+  margin: 0 auto 60px;
+}
+
+.offersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.offerCard {
+  background: white;
+  border-radius: 20px;
+  padding: 36px 28px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.offerCard:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+}
+
+.offerCardHighlight {
+  border: 3px solid #FF6B35;
+  position: relative;
+}
+
+.offerCardHighlight::before {
+  content: "⭐ Mais Popular";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #FF6B35;
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 4px 20px;
+  border-radius: 50px;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.offerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.offerBadge {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(255, 107, 53, 0.1);
+  padding: 4px 12px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  white-space: nowrap;
+}
+
+.offerDiscount {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: white;
+  background: #2D3436;
+  padding: 4px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.offerTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2D3436;
+  line-height: 1.3;
+}
+
+.offerDescription {
+  font-size: 0.9375rem;
+  color: #636E72;
+  line-height: 1.65;
+  flex: 1;
+}
+
+.offerValidity {
+  font-size: 0.8125rem;
+  color: #b2bec3;
+  font-style: italic;
+}
+
+.offerCta {
+  display: inline-block;
+  padding: 13px 28px;
+  background: var(--gradient-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(255, 107, 53, 0.3);
+  margin-top: auto;
+}
+
+.offerCta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(255, 107, 53, 0.4);
+}
+
+/* ─────────────────────────────────────────────
+   How it Works — Steps Section
+   ───────────────────────────────────────────── */
+.steps {
   padding: 100px 80px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
 
-.benefitsContent {
-  max-width: 900px;
+.stepsContent {
+  max-width: 800px;
   margin: 0 auto;
+  text-align: center;
 }
 
-.benefitsText {
-  width: 100%;
-}
-
-.benefitItem {
+.stepsList {
+  margin-top: 60px;
   display: flex;
-  gap: 24px;
-  margin-bottom: 40px;
+  flex-direction: column;
+  gap: 40px;
+  text-align: left;
+}
+
+.stepItem {
+  display: flex;
+  gap: 28px;
   align-items: flex-start;
 }
 
-.benefitNumber {
+.stepNumber {
   flex-shrink: 0;
   width: 56px;
   height: 56px;
@@ -253,21 +557,21 @@
   font-weight: 700;
 }
 
-.benefitTitle {
-  font-size: 1.5rem;
+.stepTitle {
+  font-size: 1.375rem;
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--foreground);
 }
 
-.benefitDescription {
-  font-size: 1.125rem;
+.stepDescription {
+  font-size: 1.0625rem;
   color: var(--foreground-secondary);
   line-height: 1.7;
 }
 
-.benefitHighlight {
-  margin-top: 48px;
+.stepHighlight {
+  margin-top: 56px;
   padding: 32px;
   background: var(--gradient-primary);
   border-radius: 20px;
@@ -275,14 +579,16 @@
   box-shadow: 0 8px 30px rgba(255, 107, 53, 0.3);
 }
 
-.benefitHighlightText {
+.stepHighlightText {
   font-size: 1.5rem;
   font-weight: 700;
   color: white;
   display: block;
 }
 
-/* Footer */
+/* ─────────────────────────────────────────────
+   Footer
+   ───────────────────────────────────────────── */
 .footer {
   padding: 80px 80px 40px;
   background: var(--background);
@@ -355,7 +661,9 @@
   color: var(--foreground-secondary);
 }
 
-/* Responsive Design */
+/* ─────────────────────────────────────────────
+   Responsive Design
+   ───────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .hero {
     flex-direction: column;
@@ -368,21 +676,39 @@
     max-width: 100%;
   }
 
+  .heroActions {
+    justify-content: center;
+  }
+
+  .heroSubtitle {
+    max-width: 100%;
+  }
+
   .heroVisual {
     max-width: 100%;
     height: 400px;
   }
 
-  .valueProp,
+  .howSection,
   .features,
-  .benefits,
+  .offersSection,
+  .steps,
   .footer {
     padding: 80px 60px;
+  }
+
+  .pillarsGrid {
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
 
   .featuresGrid {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 24px;
+  }
+
+  .offersGrid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 }
 
@@ -411,9 +737,10 @@
     height: 120px;
   }
 
-  .valueProp,
+  .howSection,
   .features,
-  .benefits,
+  .offersSection,
+  .steps,
   .footer {
     padding: 60px 32px;
   }
@@ -422,12 +749,16 @@
     grid-template-columns: 1fr;
   }
 
-  .benefitItem {
+  .offersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stepItem {
     flex-direction: column;
     gap: 16px;
   }
 
-  .benefitNumber {
+  .stepNumber {
     width: 48px;
     height: 48px;
     font-size: 1.25rem;
@@ -437,7 +768,7 @@
     padding: 32px 24px;
   }
 
-  .benefitHighlightText {
+  .stepHighlightText {
     font-size: 1.25rem;
   }
 }
@@ -447,9 +778,10 @@
     padding: 80px 24px 40px;
   }
 
-  .valueProp,
+  .howSection,
   .features,
-  .benefits,
+  .offersSection,
+  .steps,
   .footer {
     padding: 50px 24px;
   }
@@ -461,11 +793,27 @@
     max-width: 300px;
   }
 
+  .secondaryButton {
+    padding: 16px 24px;
+    font-size: 1rem;
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .heroActions {
+    flex-direction: column;
+    align-items: center;
+  }
+
   .crowdfunding {
     padding: 24px 20px;
   }
 
   .crowdfundingTitle {
     font-size: 1.5rem;
+  }
+
+  .offerCardHighlight {
+    margin-top: 12px;
   }
 }
