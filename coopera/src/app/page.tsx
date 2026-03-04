@@ -5,44 +5,44 @@ const promoOffers = [
     icon: "🛒",
     category: "Alimentação",
     name: "Cesta Básica Comunitária",
-    description:
-      "Kit completo com arroz, feijão, azeite, açúcar, macarrão e outros itens essenciais.",
-    discount: 30,
+    organizer: "Dona Maria — Vila Esperança",
+    description: "Arroz 5kg, feijão 2kg, azeite, açúcar, macarrão e outros itens essenciais.",
+    price: "R$ 89,90",
     participants: 14,
     minParticipants: 20,
     deadline: "3 dias",
   },
   {
-    icon: "🏠",
-    category: "Eletrodomésticos",
-    name: "Kit Casa Nova",
-    description:
-      "Geladeira Frost Free 350L + fogão 4 bocas com forno. Entrega e instalação inclusas.",
-    discount: 25,
-    participants: 7,
-    minParticipants: 10,
-    deadline: "7 dias",
+    icon: "🥩",
+    category: "Açougue",
+    name: "Kit Carnes da Semana",
+    organizer: "João Açougue — Bairro Norte",
+    description: "Frango 3kg, carne moída 2kg, linguiça 1kg. Corte e embalagem inclusos.",
+    price: "R$ 74,50",
+    participants: 31,
+    minParticipants: 25,
+    deadline: "1 dia",
   },
   {
-    icon: "📚",
-    category: "Educação",
-    name: "Material Escolar 2026",
-    description:
-      "Kit completo para o ano letivo: cadernos, lápis, canetas, régua, mochila e muito mais.",
-    discount: 40,
-    participants: 22,
+    icon: "🧴",
+    category: "Limpeza & Higiene",
+    name: "Kit Limpeza Mensal",
+    organizer: "Cooperativa do Bairro Sul",
+    description: "Detergente, sabão em pó, desinfetante, amaciante e papel higiênico.",
+    price: "R$ 49,90",
+    participants: 8,
     minParticipants: 15,
     deadline: "5 dias",
   },
   {
-    icon: "🔥",
-    category: "Gás & Energia",
-    name: "Gás de Cozinha P13",
-    description:
-      "Botijão de gás 13kg com entrega agendada. Recorrência mensal disponível.",
-    discount: 20,
-    participants: 28,
-    minParticipants: 30,
+    icon: "🥦",
+    category: "Hortifruti",
+    name: "Caixa de Hortifruti",
+    organizer: "Sítio do Pedro — Direto do Campo",
+    description: "Caixa mista com frutas e legumes da estação, direto do produtor.",
+    price: "R$ 55,00",
+    participants: 19,
+    minParticipants: 20,
     deadline: "2 dias",
   },
 ];
@@ -54,29 +54,33 @@ export default function Home() {
       <nav className={styles.nav}>
         <div className={styles.navContent}>
           <div className={styles.logo}>CoopEra</div>
-          <button className={styles.ctaButton}>Criar conta gratuita</button>
+          <a href="#ofertas" className={styles.ctaButton}>
+            Ver todas as ofertas
+          </a>
         </div>
       </nav>
 
-      {/* WHY — Purpose & Belief */}
+      {/* WHY — Propósito */}
       <section className={styles.hero}>
         <div className={styles.heroContent}>
           <div className={styles.whyBadge}>Nosso Propósito</div>
           <h1 className={styles.heroTitle}>
-            Acreditamos que toda comunidade merece acesso a{" "}
-            <span className={styles.highlight}>produtos de qualidade</span>
+            Toda pessoa merece encontrar{" "}
+            <span className={styles.highlight}>compras coletivas</span> perto
+            de si, sem precisar estar no grupo certo do WhatsApp
           </h1>
           <p className={styles.heroDescription}>
-            Nenhuma família deveria pagar caro por necessidades básicas.
-            Existimos para mudar isso — unindo vizinhos, fortalecendo
-            comunidades e tornando o poder coletivo acessível a todos,
-            independentemente de renda ou localização.
+            Milhares de compras coletivas acontecem todo dia no WhatsApp. A
+            maioria das pessoas não tem acesso porque não conhece o
+            administrador certo. A CoopEra muda isso.
           </p>
           <div className={styles.heroCta}>
-            <button className={styles.ctaButtonLarge}>
-              Transforme sua comunidade
-            </button>
-            <button className={styles.secondaryButton}>Como funciona?</button>
+            <a href="#ofertas" className={styles.ctaButtonLarge}>
+              Ver ofertas ativas
+            </a>
+            <a href="#como-funciona" className={styles.secondaryButton}>
+              Como funciona?
+            </a>
           </div>
         </div>
         <div className={styles.heroVisual}>
@@ -84,112 +88,108 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HOW — The Process */}
-      <section className={styles.how}>
+      {/* HOW — Como funciona */}
+      <section id="como-funciona" className={styles.how}>
         <div className={styles.howContent}>
-          <div className={styles.sectionBadge}>Como Fazemos</div>
+          <div className={styles.sectionBadge}>Como Funciona</div>
           <h2 className={styles.sectionTitle}>
-            Como construímos uma comunidade mais forte
+            Compras coletivas do WhatsApp, organizadas para você
           </h2>
-          <p className={styles.sectionDescription}>
-            Unimos líderes e moradores em um modelo simples de compra coletiva
-            que gera benefícios reais para todos.
-          </p>
           <div className={styles.stepsGrid}>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>01</div>
-              <div className={styles.stepIcon}>🧑‍🤝‍🧑</div>
-              <h3 className={styles.stepTitle}>Líderes criam grupos</h3>
+              <div className={styles.stepIcon}>👀</div>
+              <h3 className={styles.stepTitle}>Monitoramos os grupos</h3>
               <p className={styles.stepDescription}>
-                Líderes comunitários organizam grupos de compra e definem as
-                necessidades locais.
+                A CoopEra monitora constantemente os maiores e melhores grupos
+                de compras coletivas de Florianópolis.
               </p>
             </div>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>02</div>
-              <div className={styles.stepIcon}>👥</div>
-              <h3 className={styles.stepTitle}>Membros participam</h3>
+              <div className={styles.stepIcon}>📋</div>
+              <h3 className={styles.stepTitle}>Organizamos as ofertas</h3>
               <p className={styles.stepDescription}>
-                Vizinhos entram no grupo, conferem as ofertas e fazem seus
-                pedidos com poucos cliques.
+                As ofertas são extraídas e organizadas de forma clara, para
+                você encontrar as melhores opções com facilidade.
               </p>
             </div>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>03</div>
-              <div className={styles.stepIcon}>💸</div>
-              <h3 className={styles.stepTitle}>Poder coletivo negocia</h3>
+              <div className={styles.stepIcon}>🛒</div>
+              <h3 className={styles.stepTitle}>Você escolhe e compra</h3>
               <p className={styles.stepDescription}>
-                O volume coletivo garante os melhores preços — muito abaixo do
-                que cada um conseguiria sozinho.
+                Adicione os produtos ao carrinho e efetue o pagamento — rápido
+                e seguro, sem precisar entrar em nenhum grupo.
               </p>
             </div>
             <div className={styles.stepCard}>
               <div className={styles.stepNumber}>04</div>
-              <div className={styles.stepIcon}>🚚</div>
-              <h3 className={styles.stepTitle}>Entrega na sua porta</h3>
+              <div className={styles.stepIcon}>📦</div>
+              <h3 className={styles.stepTitle}>Aguarde em casa</h3>
               <p className={styles.stepDescription}>
-                Os produtos chegam direto na residência de cada membro, pelo
-                sistema de entrega local do CoopEra.
+                Seus produtos chegam até você. O frete é combinado e pago
+                diretamente na entrega.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* WHAT — The Platform */}
+      {/* WHAT — O que você encontra */}
       <section className={styles.benefits}>
         <div className={styles.benefitsContent}>
-          <div className={styles.sectionBadge}>O Que Oferecemos</div>
+          <div className={styles.sectionBadge}>O Que Você Encontra</div>
           <h2 className={styles.sectionTitle}>
-            Uma plataforma completa para sua comunidade
+            Tudo que você precisa para participar de compras coletivas
           </h2>
           <div className={styles.benefitsGrid}>
             <div className={styles.benefitCard}>
-              <div className={styles.benefitIcon}>💰</div>
-              <h3 className={styles.benefitTitle}>Economia Real</h3>
+              <div className={styles.benefitIcon}>🗂️</div>
+              <h3 className={styles.benefitTitle}>Ofertas Organizadas</h3>
               <p className={styles.benefitDescription}>
-                Compre itens a preços significativamente mais baixos do que nas
-                lojas tradicionais através do poder das compras coletivas.
+                Todas as compras coletivas da sua região em um único lugar,
+                sempre atualizadas e fáceis de comparar.
               </p>
             </div>
             <div className={styles.benefitCard}>
-              <div className={styles.benefitIcon}>🏠</div>
-              <h3 className={styles.benefitTitle}>Entrega na Porta</h3>
+              <div className={styles.benefitIcon}>💰</div>
+              <h3 className={styles.benefitTitle}>Preços de Atacado</h3>
               <p className={styles.benefitDescription}>
-                Receba seus produtos diretamente em casa através do nosso
-                sistema de entrega local, sem sair de casa.
+                Acesse preços que só grupos de compra conseguem — sem precisar
+                negociar ou conhecer o administrador.
               </p>
             </div>
             <div className={styles.benefitCard}>
               <div className={styles.benefitIcon}>🤝</div>
-              <h3 className={styles.benefitTitle}>Comunidade Forte</h3>
+              <h3 className={styles.benefitTitle}>Grupos Verificados</h3>
               <p className={styles.benefitDescription}>
-                Fortaleça os laços comunitários enquanto economiza juntos,
-                criando uma rede de apoio local.
+                Só exibimos ofertas de grupos ativos e com histórico de
+                entregas confirmadas na plataforma.
               </p>
             </div>
             <div className={styles.benefitCard}>
-              <div className={styles.benefitIcon}>📱</div>
-              <h3 className={styles.benefitTitle}>Fácil de Usar</h3>
+              <div className={styles.benefitIcon}>📲</div>
+              <h3 className={styles.benefitTitle}>Sempre Atualizado</h3>
               <p className={styles.benefitDescription}>
-                Interface intuitiva para líderes gerenciarem compras coletivas
-                e membros participarem com apenas alguns cliques.
+                As ofertas são extraídas diretamente dos grupos de WhatsApp,
+                garantindo informações sempre frescas.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Promotional Offers */}
-      <section className={styles.offers}>
+      {/* Ofertas Ativas */}
+      <section id="ofertas" className={styles.offers}>
         <div className={styles.offersContent}>
           <div className={styles.sectionBadge}>Ofertas Ativas</div>
           <h2 className={styles.sectionTitle}>
             Compras coletivas abertas agora
           </h2>
           <p className={styles.sectionDescription}>
-            Junte-se a grupos já formados e economize neste mês. As vagas são
-            limitadas!
+            Ofertas agregadas dos grupos de WhatsApp monitorados pela CoopEra.
+            Vagas limitadas — garanta a sua!
           </p>
           <div className={styles.offersGrid}>
             {promoOffers.map((offer) => {
@@ -204,11 +204,10 @@ export default function Home() {
                     <span className={styles.offerCategory}>
                       {offer.category}
                     </span>
-                    <span className={styles.offerDiscount}>
-                      -{offer.discount}%
-                    </span>
+                    <span className={styles.offerPrice}>{offer.price}</span>
                   </div>
                   <h3 className={styles.offerName}>{offer.name}</h3>
+                  <p className={styles.offerOrganizer}>{offer.organizer}</p>
                   <p className={styles.offerDescription}>{offer.description}</p>
                   <div className={styles.offerMeta}>
                     <div className={styles.offerProgress}>
@@ -232,7 +231,9 @@ export default function Home() {
                       ⏱ Encerra em {offer.deadline}
                     </div>
                   </div>
-                  <button className={styles.offerButton}>Participar</button>
+                  <button className={styles.offerButton}>
+                    Adicionar ao carrinho
+                  </button>
                 </div>
               );
             })}
@@ -240,19 +241,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className={styles.ctaSection}>
-        <div className={styles.ctaSectionContent}>
+      {/* CTA para administradores */}
+      <section className={styles.adminCta}>
+        <div className={styles.adminCtaContent}>
           <h2 className={styles.ctaTitle}>
-            Pronto para transformar sua comunidade?
+            Você administra um grupo de compras coletivas?
           </h2>
           <p className={styles.ctaDescription}>
-            Comece agora e veja como as compras coletivas podem beneficiar
-            todos na sua comunidade.
+            Em breve, administradores poderão cadastrar suas ofertas diretamente
+            na plataforma e alcançar muito mais compradores. Deixe seu contato
+            para ser o primeiro a saber.
           </p>
-          <button className={styles.ctaButtonLarge}>
-            Criar conta gratuita
-          </button>
+          <form className={styles.emailForm} onSubmit={(e) => e.preventDefault()}>
+            <input
+              type="email"
+              placeholder="seu@email.com"
+              className={styles.emailInput}
+            />
+            <button type="submit" className={styles.ctaButtonLarge}>
+              Quero ser avisado
+            </button>
+          </form>
         </div>
       </section>
 
@@ -261,7 +270,7 @@ export default function Home() {
         <div className={styles.footerContent}>
           <div className={styles.footerLogo}>CoopEra</div>
           <p className={styles.footerText}>
-            Transformando comunidades através de compras coletivas
+            Compras coletivas do WhatsApp, organizadas para você — Florianópolis
           </p>
         </div>
       </footer>

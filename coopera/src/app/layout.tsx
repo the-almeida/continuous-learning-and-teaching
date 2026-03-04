@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CoopEra - Compras Coletivas para sua Comunidade",
-  description: "Ajuda líderes comunitários a gerenciar compras coletivas, permitindo que membros da comunidade comprem itens a preços mais baixos com entrega local.",
+  title: "CoopEra — Encontre Compras Coletivas perto de Você",
+  description: "Acesse ofertas de compras coletivas agregadas dos maiores grupos de WhatsApp de Florianópolis. Preços de atacado, entrega local, sem precisar estar no grupo certo.",
 };
 
 export default function RootLayout({
