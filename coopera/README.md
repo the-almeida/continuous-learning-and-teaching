@@ -73,9 +73,9 @@ This uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to guide 
 
 Pull requests trigger automated GitHub Actions workflows:
 
-| Workflow | What it checks |
-|---|---|
-| **CoopEra Linting** | Prettier formatting, ESLint rules, and Conventional Commit message format (commitlint) |
-| **CoopEra Automated Tests** | Jest integration tests |
+| Workflow                    | What it checks                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| **CoopEra Linting**         | Prettier formatting, ESLint rules, and Conventional Commit message format (commitlint) |
+| **CoopEra Automated Tests** | Jest integration tests                                                                 |
 
 All workflows are defined in `../.github/workflows/`.
