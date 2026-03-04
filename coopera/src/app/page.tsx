@@ -1,32 +1,41 @@
 import styles from "./page.module.css";
 import { ThemeToggle } from "./components/ThemeToggle";
-import { promotionalOffers } from "./data/offers";
+import { scrapedOffers } from "./data/offers";
+
+const categoryEmoji: Record<string, string> = {
+  Frutas: "🍊",
+  Carnes: "🥩",
+  Alimentos: "🌾",
+  Laticínios: "🥛",
+  Limpeza: "🧹",
+};
 
 export default function Home() {
   return (
     <div className={styles.container}>
       <ThemeToggle />
 
-      {/* WHY — Hero Section: The core belief and mission */}
+      {/* WHY — Hero Section */}
       <section className={styles.hero}>
         <div className={styles.heroContent}>
-          <span className={styles.whyLabel}>Por que existimos</span>
+          <span className={styles.whyLabel}>Florianópolis · SC</span>
           <h1 className={styles.heroTitle}>
-            Acreditamos que toda comunidade
-            <span className={styles.highlight}> merece acesso justo </span>
-            ao poder das compras coletivas
+            As melhores ofertas dos grupos de
+            <span className={styles.highlight}> compras coletivas </span>
+            do WhatsApp de Floripa, em um só lugar
           </h1>
           <p className={styles.heroSubtitle}>
-            Comunidades unidas compram mais barato, recebem em casa e fortalecem
-            laços. CoopEra nasceu para tornar isso acessível a todos os líderes
-            comunitários, independente do tamanho da sua comunidade.
+            Você não precisa entrar em dezenas de grupos para não perder uma
+            promoção. CoopEra monitora os maiores grupos de compras coletivas
+            de Florianópolis, organiza as ofertas e permite que você compre
+            direto pela plataforma — entrega na sua casa.
           </p>
           <div className={styles.heroActions}>
-            <a href="#criar-conta" className={styles.ctaButton}>
-              Criar conta gratuita
+            <a href="#ofertas" className={styles.ctaButton}>
+              Ver promoções agora
             </a>
             <a href="#como-funciona" className={styles.secondaryButton}>
-              Entender a missão
+              Como funciona
             </a>
           </div>
         </div>
@@ -37,134 +46,160 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HOW — Approach Section: The principles that deliver on the WHY */}
+      {/* HOW — Approach Section */}
       <section className={styles.howSection} id="como-funciona">
         <div className={styles.howContent}>
           <span className={styles.sectionLabel}>Como fazemos isso</span>
           <h2 className={styles.sectionTitle}>
-            Três pilares que transformam comunidades
+            Tecnologia a serviço das comunidades
           </h2>
           <p className={styles.sectionSubtitle}>
-            Nossa abordagem combina tecnologia acessível, liderança local e
-            transparência total para que o poder coletivo chegue a todos.
+            Automatizamos o trabalho chato para que você só precise aproveitar
+            as melhores ofertas da sua região.
           </p>
           <div className={styles.pillarsGrid}>
             <div className={styles.pillarCard}>
-              <div className={styles.pillarIcon}>⚡</div>
-              <h3 className={styles.pillarTitle}>Poder Coletivo</h3>
+              <div className={styles.pillarIcon}>📲</div>
+              <h3 className={styles.pillarTitle}>Monitoramos por você</h3>
               <p className={styles.pillarText}>
-                Unimos os pedidos de todos os membros para negociar preços que
-                nenhum consumidor individual conseguiria sozinho.
+                Acompanhamos continuamente os maiores e melhores grupos de
+                compras coletivas de Florianópolis no WhatsApp e extraímos
+                cada oferta publicada — em tempo real.
               </p>
             </div>
             <div className={styles.pillarCard}>
-              <div className={styles.pillarIcon}>🌱</div>
-              <h3 className={styles.pillarTitle}>Liderança Local</h3>
+              <div className={styles.pillarIcon}>🗂️</div>
+              <h3 className={styles.pillarTitle}>Organizamos as melhores ofertas</h3>
               <p className={styles.pillarText}>
-                Damos às lideranças comunitárias as ferramentas para organizar,
-                gerenciar e crescer com autonomia e confiança.
+                As promoções são categorizadas e exibidas de forma clara para
+                que você encontre o que precisa sem vasculhar mensagens em
+                vários grupos.
               </p>
             </div>
             <div className={styles.pillarCard}>
-              <div className={styles.pillarIcon}>🔍</div>
-              <h3 className={styles.pillarTitle}>Transparência Total</h3>
+              <div className={styles.pillarIcon}>🚪</div>
+              <h3 className={styles.pillarTitle}>Entrega na sua porta</h3>
               <p className={styles.pillarText}>
-                Cada pedido, cada preço e cada entrega é acompanhado em tempo
-                real por líderes e membros da comunidade.
+                Adicione ao carrinho, efetue o pagamento e aguarde. Cuidamos
+                da logística e entregamos direto na sua casa em
+                Florianópolis.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* WHAT — Features Section: The actual product and services */}
+      {/* WHAT — MVP Deliverables */}
       <section className={styles.features}>
-        <span className={styles.sectionLabel}>O que oferecemos</span>
-        <h2 className={styles.sectionTitle}>Recursos que fazem a diferença</h2>
-        <div className={styles.featuresGrid}>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>💰</div>
-            <h3 className={styles.featureTitle}>Economia Real</h3>
-            <p className={styles.featureText}>
-              Preços até 30% menores através do poder das compras coletivas
+        <span className={styles.sectionLabel}>O que entregamos</span>
+        <h2 className={styles.sectionTitle}>Dois produtos, uma missão</h2>
+        <p className={styles.sectionSubtitle}>
+          Começamos simples e focado no que realmente gera valor para as
+          comunidades.
+        </p>
+        <div className={styles.mvpGrid}>
+          <div className={styles.mvpCard}>
+            <div className={styles.mvpBadge}>Entregável 1 — Disponível agora</div>
+            <div className={styles.mvpIcon}>📲</div>
+            <h3 className={styles.mvpTitle}>
+              Agregador de Promoções do WhatsApp
+            </h3>
+            <p className={styles.mvpText}>
+              Coletamos automaticamente as promoções publicadas nos principais
+              grupos de compras coletivas do WhatsApp e as exibimos em uma
+              plataforma organizada, com filtros por categoria, região e faixa
+              de preço.
             </p>
+            <ul className={styles.mvpList}>
+              <li>Monitoramento contínuo dos grupos</li>
+              <li>Categorização automática por produto</li>
+              <li>Filtro por cidade e estado</li>
+              <li>Alertas para novas ofertas</li>
+            </ul>
           </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🚚</div>
-            <h3 className={styles.featureTitle}>Entrega na Porta</h3>
-            <p className={styles.featureText}>
-              Sistema de entrega local traz comodidade diretamente até você
+          <div className={styles.mvpCard}>
+            <div className={`${styles.mvpBadge} ${styles.mvpBadgeSecondary}`}>
+              Entregável 2 — Em breve
+            </div>
+            <div className={styles.mvpIcon}>🗂️</div>
+            <h3 className={styles.mvpTitle}>Catálogo para Administradores</h3>
+            <p className={styles.mvpText}>
+              Painel completo para que líderes comunitários criem catálogos
+              próprios, gerenciem pedidos coletivos e coordenem as entregas da
+              sua comunidade com simplicidade.
             </p>
-          </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>📊</div>
-            <h3 className={styles.featureTitle}>Gestão Simplificada</h3>
-            <p className={styles.featureText}>
-              Catálogos, pedidos e relatórios em um painel intuitivo para líderes
-            </p>
-          </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🤝</div>
-            <h3 className={styles.featureTitle}>Comunidade Forte</h3>
-            <p className={styles.featureText}>
-              Conecta pessoas, fortalece laços e gera impacto local real
-            </p>
-          </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>📱</div>
-            <h3 className={styles.featureTitle}>Rastreamento em Tempo Real</h3>
-            <p className={styles.featureText}>
-              Membros acompanham seus pedidos do catálogo até a entrega
-            </p>
-          </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIcon}>🛡️</div>
-            <h3 className={styles.featureTitle}>Segurança Garantida</h3>
-            <p className={styles.featureText}>
-              Pagamentos protegidos e dados da comunidade sempre seguros
-            </p>
+            <ul className={styles.mvpList}>
+              <li>Criação e edição de catálogos</li>
+              <li>Consolidação de pedidos dos membros</li>
+              <li>Painel de gestão de entregas</li>
+              <li>Relatórios de economia gerada</li>
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* Promotional Offers Section */}
-      <section className={styles.offersSection}>
+      {/* Scraped Offers Section */}
+      <section className={styles.offersSection} id="ofertas">
         <div className={styles.offersContent}>
-          <span className={styles.sectionLabelLight}>Ofertas em destaque</span>
+          <span className={styles.sectionLabelLight}>Ao vivo</span>
           <h2 className={styles.offersSectionTitle}>
-            Promoções disponíveis agora na plataforma
+            Promoções coletadas dos grupos do WhatsApp
           </h2>
           <p className={styles.offersSectionSubtitle}>
-            Aproveite as ofertas exclusivas para novas comunidades e líderes que
-            querem começar a economizar hoje.
+            Ofertas reais publicadas hoje nos grupos de compras coletivas
+            monitorados pela CoopEra.
           </p>
           <div className={styles.offersGrid}>
-            {promotionalOffers.map((offer) => (
+            {scrapedOffers.map((offer) => (
               <div
                 key={offer.id}
-                className={`${styles.offerCard} ${offer.highlight ? styles.offerCardHighlight : ""}`}
+                className={`${styles.offerCard} ${offer.isNew ? styles.offerCardNew : ""}`}
               >
-                <div className={styles.offerHeader}>
-                  <span className={styles.offerBadge}>{offer.badge}</span>
-                  <span className={styles.offerDiscount}>{offer.discount}</span>
+                {offer.isNew && (
+                  <span className={styles.offerNewBadge}>Novo</span>
+                )}
+                <div className={styles.offerSource}>
+                  <span className={styles.offerSourceIcon}>💬</span>
+                  <span className={styles.offerSourceName}>
+                    {offer.sourceGroup}
+                  </span>
+                </div>
+                <div className={styles.offerCategoryRow}>
+                  <span className={styles.offerCategory}>
+                    {categoryEmoji[offer.category] ?? "🛒"} {offer.category}
+                  </span>
+                  <span className={styles.offerTime}>{offer.postedAt}</span>
                 </div>
                 <h3 className={styles.offerTitle}>{offer.title}</h3>
                 <p className={styles.offerDescription}>{offer.description}</p>
-                {offer.validUntil && (
-                  <p className={styles.offerValidity}>
-                    Válido até {offer.validUntil}
-                  </p>
-                )}
-                <a href="#criar-conta" className={styles.offerCta}>
-                  {offer.cta}
-                </a>
+                <div className={styles.offerPriceRow}>
+                  <div className={styles.offerPrices}>
+                    {offer.originalPrice && (
+                      <span className={styles.offerOriginalPrice}>
+                        {offer.originalPrice}
+                      </span>
+                    )}
+                    <span className={styles.offerPrice}>{offer.price}</span>
+                    <span className={styles.offerUnit}>/ {offer.unit}</span>
+                  </div>
+                </div>
+                <div className={styles.offerFooter}>
+                  <span className={styles.offerLocation}>
+                    📍 {offer.location}
+                  </span>
+                  {offer.minOrder && (
+                    <span className={styles.offerMinOrder}>
+                      {offer.minOrder}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works — Step-by-step */}
+      {/* How it works — Steps */}
       <section className={styles.steps}>
         <div className={styles.stepsContent}>
           <span className={styles.sectionLabel}>Passo a passo</span>
@@ -173,34 +208,46 @@ export default function Home() {
             <div className={styles.stepItem}>
               <div className={styles.stepNumber}>1</div>
               <div>
-                <h3 className={styles.stepTitle}>Líderes criam catálogos</h3>
+                <h3 className={styles.stepTitle}>
+                  CoopEra monitora os melhores grupos de Floripa
+                </h3>
                 <p className={styles.stepDescription}>
-                  Organize produtos, defina preços e compartilhe com a comunidade
+                  Monitoramos constantemente os maiores grupos de compras
+                  coletivas do WhatsApp em Florianópolis e extraímos as
+                  promoções publicadas automaticamente.
                 </p>
               </div>
             </div>
             <div className={styles.stepItem}>
               <div className={styles.stepNumber}>2</div>
               <div>
-                <h3 className={styles.stepTitle}>Membros fazem pedidos</h3>
+                <h3 className={styles.stepTitle}>
+                  Adicione os produtos ao carrinho e pague
+                </h3>
                 <p className={styles.stepDescription}>
-                  Navegue pelos produtos, escolha o que precisa e faça seu pedido
+                  Navegue pelas ofertas organizadas, escolha o que precisa,
+                  adicione ao carrinho e conclua o pagamento direto na
+                  plataforma — sem precisar entrar em nenhum grupo.
                 </p>
               </div>
             </div>
             <div className={styles.stepItem}>
               <div className={styles.stepNumber}>3</div>
               <div>
-                <h3 className={styles.stepTitle}>Rastreamento em tempo real</h3>
+                <h3 className={styles.stepTitle}>
+                  Aguarde os produtos chegarem na sua casa
+                </h3>
                 <p className={styles.stepDescription}>
-                  Acompanhe seu pedido do início até a entrega na sua porta
+                  Cuidamos de toda a logística. Seus produtos chegam direto
+                  na sua porta em Florianópolis, sem você precisar sair de
+                  casa para buscar nada.
                 </p>
               </div>
             </div>
           </div>
           <div className={styles.stepHighlight}>
             <span className={styles.stepHighlightText}>
-              Economize até 30% comparado aos preços de varejo tradicional
+              Economize até 30% comprando junto com sua comunidade
             </span>
           </div>
         </div>
@@ -212,8 +259,9 @@ export default function Home() {
           <div className={styles.footerMain}>
             <h3 className={styles.footerTitle}>CoopEra</h3>
             <p className={styles.footerDescription}>
-              Plataforma de compras coletivas que transforma comunidades,
-              conectando líderes e membros para economizar juntos.
+              Monitoramos os melhores grupos de compras coletivas do WhatsApp
+              de Florianópolis e reunimos as ofertas em um só lugar para você
+              comprar e receber em casa.
             </p>
           </div>
 
@@ -222,9 +270,9 @@ export default function Home() {
               🚀 Ajude a Construir o CoopEra
             </h4>
             <p className={styles.crowdfundingText}>
-              Este projeto nasceu da proximidade com líderes comunitários e
-              membros de comunidades que conhecem as dificuldades de coletar
-              pedidos e facilitar a organização coletiva. Estamos construindo
+              Este projeto nasceu da proximidade com líderes comunitários que
+              conhecem a dificuldade de acompanhar dezenas de grupos no
+              WhatsApp e não perder as melhores ofertas. Estamos construindo
               uma solução colaborativa e precisamos do seu apoio!
             </p>
             <p className={styles.crowdfundingText}>
