@@ -1,15 +1,14 @@
-## CoopEra
+# CoopEra
 
-App created to help community leaders to manage collective purchasing allowing community members to buy items at lower cost in comparative with normal stores.
+App created to help community leaders to manage collective purchasing allowing community members to buy items at lower cost in comparison with normal stores.
 
-### Developers Info
+## Developers Info
 
-This project was created using `create-next-app`, and the default setup for App Router, Typescript, and EsLint.
+This project was created using `create-next-app`, with the default setup for App Router, TypeScript, and ESLint.
 
 Since this project lives inside the `continuous-learning-and-teaching` monorepo, all `.github` resources (CI/CD workflows and Dependabot configuration) are defined at the repository root (`../.github`).
-``
 
-#### Important Scripts:
+### Important Scripts
 
 Install dependencies:
 
@@ -59,3 +58,24 @@ yarn lint:prettier:fix
 yarn lint:eslint:check
 yarn lint:eslint:fix
 ```
+
+Commit (interactive Commitizen prompt):
+
+```bash
+npm run commit
+# or
+yarn commit
+```
+
+This uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to guide you through writing a valid [Conventional Commit](https://www.conventionalcommits.org/) message. Commits are validated automatically by `commitlint` via a Husky git hook configured at the monorepo root — run `npm install` at the repo root once to activate it.
+
+## CI/CD
+
+Pull requests trigger automated GitHub Actions workflows:
+
+| Workflow | What it checks |
+|---|---|
+| **CoopEra Linting** | Prettier formatting, ESLint rules, and Conventional Commit message format (commitlint) |
+| **CoopEra Automated Tests** | Jest integration tests |
+
+All workflows are defined in `../.github/workflows/`.
