@@ -14,7 +14,6 @@ const mockProduct = { id: 'prod-1', name: 'Product', price: 10.00, stock: 5 };
 describe('OrdersService', () => {
   let service: OrdersService;
   let productsService: jest.Mocked<ProductsService>;
-  let dataSource: jest.Mocked<DataSource>;
 
   const mockManager = {
     create: jest.fn(),
@@ -48,7 +47,6 @@ describe('OrdersService', () => {
 
     service = module.get<OrdersService>(OrdersService);
     productsService = module.get(ProductsService);
-    dataSource = module.get(DataSource);
   });
 
   describe('create', () => {
