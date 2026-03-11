@@ -61,5 +61,10 @@
     "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "./node_modules/.bin/eslint --max-warnings=0"
+    ]
   }
 }

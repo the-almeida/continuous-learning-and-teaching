@@ -1,0 +1,31 @@
+#!/bin/sh
+# Run lint-staged from each project directory that has staged files.
+# This ensures ESLint runs with the correct cwd and finds its config.
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+LINT_STAGED="${REPO_ROOT}/node_modules/.bin/lint-staged"
+
+run_if_changed() {
+  local dir=$1
+  if git diff --cached --name-only | grep -q "^${dir}/"; then
+    echo "→ Linting ${dir}..."
+    (cd "${REPO_ROOT}/${dir}" && "${LINT_STAGED}")
+  fi
+}
+
+run_if_changed "coopera"
+run_if_changed "superdoc-nextjs-playground"
+run_if_changed "technical-acessments/fullstack-mini-marketplace/frontend"
+run_if_changed "technical-acessments/fullstack-mini-marketplace/backend"
+
+# Python: no package.json, run ruff directly if available
+if git diff --cached --name-only | grep -q "^python-selenium-linkedin-automation/"; then
+  echo "→ Linting python-selenium-linkedin-automation..."
+  if command -v ruff >/dev/null 2>&1; then
+    git diff --cached --name-only --diff-filter=ACM \
+      | grep "^python-selenium-linkedin-automation/.*\.py$" \
+      | xargs ruff check
+  else
+    echo "⚠ ruff not installed, skipping Python lint"
+  fi
+fi

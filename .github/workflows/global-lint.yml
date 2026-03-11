@@ -1,0 +1,131 @@
+name: Global Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  changes:
+    name: Detect changed projects
+    runs-on: ubuntu-latest
+    outputs:
+      coopera: ${{ steps.filter.outputs.coopera }}
+      superdoc: ${{ steps.filter.outputs.superdoc }}
+      technical-assessments: ${{ steps.filter.outputs.technical-assessments }}
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            coopera:
+              - "coopera/**"
+            superdoc:
+              - "superdoc-nextjs-playground/**"
+            technical-assessments:
+              - "technical-acessments/**"
+            python:
+              - "python-selenium-linkedin-automation/**"
+
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/hydrogen"
+      - run: npm ci
+      - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  lint-coopera:
+    name: Lint CoopEra
+    needs: changes
+    if: needs.changes.outputs.coopera == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coopera
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/hydrogen"
+          cache: npm
+          cache-dependency-path: coopera/package-lock.json
+      - run: npm ci
+      - run: npm run lint:prettier:check
+      - run: npm run lint:eslint:check
+
+  lint-superdoc:
+    name: Lint Superdoc Playground
+    needs: changes
+    if: needs.changes.outputs.superdoc == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: superdoc-nextjs-playground
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: superdoc-nextjs-playground/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  lint-technical-assessments-frontend:
+    name: Lint Technical Assessments — Mini Marketplace Frontend
+    needs: changes
+    if: needs.changes.outputs.technical-assessments == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: technical-acessments/fullstack-mini-marketplace/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: technical-acessments/fullstack-mini-marketplace/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  lint-technical-assessments-backend:
+    name: Lint Technical Assessments — Mini Marketplace Backend
+    needs: changes
+    if: needs.changes.outputs.technical-assessments == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: technical-acessments/fullstack-mini-marketplace/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: technical-acessments/fullstack-mini-marketplace/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  lint-python:
+    name: Lint Python Automation
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-selenium-linkedin-automation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install ruff
+      - run: ruff check .

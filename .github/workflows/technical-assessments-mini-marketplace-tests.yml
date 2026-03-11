@@ -1,24 +1,15 @@
-name: Mini Marketplace CI
+name: Technical Assessments — Mini Marketplace Tests
 
 on:
-  push:
-    branches: [main, technicalAcessments]
-    paths:
-      - "technical-acessments/fullstack-mini-marketplace/**"
-      - ".github/workflows/mini-marketplace.yml"
   pull_request:
-    branches: [main, technicalAcessments]
+    branches: [main]
     paths:
       - "technical-acessments/fullstack-mini-marketplace/**"
-      - ".github/workflows/mini-marketplace.yml"
-
-defaults:
-  run:
-    working-directory: technical-acessments/fullstack-mini-marketplace
+      - ".github/workflows/technical-assessments-mini-marketplace-tests.yml"
 
 jobs:
   backend:
-    name: Backend (lint + test)
+    name: Backend Tests
     runs-on: ubuntu-latest
 
     services:
@@ -58,11 +49,10 @@ jobs:
           cache: npm
           cache-dependency-path: technical-acessments/fullstack-mini-marketplace/backend/package-lock.json
       - run: npm ci
-      - run: npm run lint
       - run: npm test
 
   frontend:
-    name: Frontend (lint + test + build)
+    name: Frontend Tests + Build
     runs-on: ubuntu-latest
 
     env:
@@ -81,6 +71,5 @@ jobs:
           cache: npm
           cache-dependency-path: technical-acessments/fullstack-mini-marketplace/frontend/package-lock.json
       - run: npm ci
-      - run: npm run lint
       - run: npm test
       - run: npm run build

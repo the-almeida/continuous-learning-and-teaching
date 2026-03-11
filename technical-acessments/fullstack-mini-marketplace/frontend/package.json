@@ -45,5 +45,10 @@
       "^.+\\.(t|j)sx?$": ["ts-jest", { "tsconfig": { "jsx": "react-jsx" } }]
     },
     "testMatch": ["**/*.test.(ts|tsx)"]
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "./node_modules/.bin/eslint --max-warnings=0"
+    ]
   }
 }
