@@ -14,7 +14,7 @@ jobs:
       technical-assessments: ${{ steps.filter.outputs.technical-assessments }}
       python: ${{ steps.filter.outputs.python }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -32,10 +32,10 @@ jobs:
     name: Commitlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6.2.0
         with:
           node-version: "lts/hydrogen"
       - run: npm ci
@@ -50,8 +50,8 @@ jobs:
       run:
         working-directory: coopera
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.2.0
         with:
           node-version: "lts/hydrogen"
           cache: npm
@@ -69,8 +69,8 @@ jobs:
       run:
         working-directory: superdoc-nextjs-playground
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.2.0
         with:
           node-version: "20.x"
           cache: npm
@@ -87,8 +87,8 @@ jobs:
       run:
         working-directory: technical-acessments/fullstack-mini-marketplace/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.2.0
         with:
           node-version: "20.x"
           cache: npm
@@ -105,8 +105,8 @@ jobs:
       run:
         working-directory: technical-acessments/fullstack-mini-marketplace/backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.2.0
         with:
           node-version: "20.x"
           cache: npm
@@ -123,7 +123,7 @@ jobs:
       run:
         working-directory: python-selenium-linkedin-automation
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
