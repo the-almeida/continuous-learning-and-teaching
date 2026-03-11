@@ -6,7 +6,7 @@ import { Product } from '@/lib/api';
 // Mock next/image and next/link
 jest.mock('next/image', () => ({
   __esModule: true,
-  default: ({ alt, ...props }: { alt: string }) => <img alt={alt} {...props} />,
+  default: ({ alt, fill, sizes, ...props }: { alt: string; fill?: boolean; sizes?: string }) => <img alt={alt} {...props} />,
 }));
 jest.mock('next/link', () => ({
   __esModule: true,

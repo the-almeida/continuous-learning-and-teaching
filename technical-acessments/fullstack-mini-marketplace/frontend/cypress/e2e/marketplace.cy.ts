@@ -29,7 +29,7 @@ describe('Mini Marketplace — E2E', () => {
 
   it('navigates to product detail page', () => {
     cy.visit('/');
-    cy.get('article').first().find('a').first().click();
+    cy.contains('button', /add to cart/i).parents('article').find('a').first().click();
     cy.url().should('match', /\/products\/.+/);
     cy.get('h1').should('be.visible');
     cy.get('button').contains(/add to cart/i).should('be.visible');
@@ -45,8 +45,8 @@ describe('Mini Marketplace — E2E', () => {
     // 2. Should redirect to home after login
     cy.url().should('eq', Cypress.config().baseUrl + '/');
 
-    // 3. Add first product to cart
-    cy.get('article').first().find('button').contains(/add to cart/i).click();
+    // 3. Add first available product to cart
+    cy.contains('article button', /add to cart/i).click();
 
     // 4. Go to cart
     cy.get('a[aria-label]').contains('').click(); // cart icon
