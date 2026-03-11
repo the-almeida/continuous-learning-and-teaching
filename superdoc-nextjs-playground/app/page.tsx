@@ -20,3 +20,5 @@ export default function Home() {
     </div>
   );
 }
+
+var __lintTest = "CI validation: no-var error";

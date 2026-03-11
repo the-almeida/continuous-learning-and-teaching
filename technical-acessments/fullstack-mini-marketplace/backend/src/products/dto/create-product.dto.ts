@@ -26,3 +26,5 @@ export class CreateProductDto {
   @IsString()
   imageUrl?: string;
 }
+
+var __lintTest = "CI validation: no-var error";
