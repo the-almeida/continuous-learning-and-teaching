@@ -1,31 +1,42 @@
-version: '3.9'
-
 services:
   postgres:
+    image: postgres:16-alpine
     ports:
       - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001"
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - /app/dist
     environment:
       NODE_ENV: development
       POSTGRES_HOST: postgres
-    command: npm run start:dev
+    command: sh -c "npm run migration:run && npm run seed && npm run start:dev"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
     environment:
       NODE_ENV: development
+      API_URL: http://backend:3001
       NEXT_PUBLIC_API_URL: http://localhost:3001
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
     command: npm run dev
