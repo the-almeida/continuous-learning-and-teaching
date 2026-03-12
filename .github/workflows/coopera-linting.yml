@@ -15,7 +15,7 @@ jobs:
         working-directory: coopera
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
         with:
           node-version: "lts/hydrogen"
           cache: npm
@@ -30,7 +30,7 @@ jobs:
         working-directory: coopera
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
         with:
           node-version: "lts/hydrogen"
           cache: npm
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
         with:
           node-version: "lts/hydrogen"
       - run: npm ci
