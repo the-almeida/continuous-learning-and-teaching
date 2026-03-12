@@ -1,0 +1,37 @@
+{
+  "folders": [
+    { "name": "root", "path": "." },
+    { "name": "coopera", "path": "coopera" },
+    { "name": "superdoc-nextjs-playground", "path": "superdoc-nextjs-playground" },
+    { "name": "mini-marketplace/backend", "path": "technical-assessments/fullstack-mini-marketplace/backend" },
+    { "name": "mini-marketplace/frontend", "path": "technical-assessments/fullstack-mini-marketplace/frontend" }
+  ],
+  "settings": {
+    "eslint.enable": true,
+    "eslint.run": "onSave",
+    "eslint.validate": [
+      "javascript",
+      "javascriptreact",
+      "typescript",
+      "typescriptreact"
+    ],
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "always",
+      "source.organizeImports": "always"
+    },
+    "editor.formatOnSave": true,
+    "editor.rulers": [80, 120],
+    "editor.wordWrap": "on",
+    "problems.showCurrentInStatus": true,
+    "problems.decorations.enabled": true
+  },
+  "extensions": {
+    "recommendations": [
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint",
+      "ms-vscode.vscode-typescript-next",
+      "eamodio.gitlens"
+    ]
+  }
+}
