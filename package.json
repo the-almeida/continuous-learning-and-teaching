@@ -23,6 +23,17 @@
     ],
     "coopera/src/**/*.{json,md,css}": [
       "npm run lint:prettier:check --prefix coopera"
+    ],
+    "technical-acessments/fullstack-mini-marketplace/backend/{src,test}/**/*.ts": [
+      "npm run lint:eslint:check --prefix technical-acessments/fullstack-mini-marketplace/backend",
+      "npm run lint:prettier:check --prefix technical-acessments/fullstack-mini-marketplace/backend"
+    ],
+    "technical-acessments/fullstack-mini-marketplace/frontend/src/**/*.{ts,tsx,js}": [
+      "npm run lint:eslint:check --prefix technical-acessments/fullstack-mini-marketplace/frontend",
+      "npm run lint:prettier:check --prefix technical-acessments/fullstack-mini-marketplace/frontend"
+    ],
+    "technical-acessments/fullstack-mini-marketplace/frontend/src/**/*.{json,md,css}": [
+      "npm run lint:prettier:check --prefix technical-acessments/fullstack-mini-marketplace/frontend"
     ]
   }
 }
