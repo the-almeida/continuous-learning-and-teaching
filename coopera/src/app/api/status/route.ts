@@ -1,6 +1,7 @@
 import database from "@/infra/database";
 
 export async function GET() {
+  console.log("test lint error");
   const updatedAt = new Date().toISOString();
 
   const databaseName = process.env.POSTGRES_DB;

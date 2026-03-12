@@ -14,8 +14,7 @@
     "lint:prettier:check": "prettier --check .",
     "lint:prettier:fix": "prettier --write .",
     "lint:eslint:check": "npx eslint . --max-warnings=0",
-    "lint:eslint:fix": "npx eslint . --fix",
-    "commit": "cz"
+    "lint:eslint:fix": "npx eslint . --fix"
   },
   "dependencies": {
     "next": "16.1.6",
@@ -30,7 +29,6 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
-    "cz-conventional-changelog": "^3.3.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
@@ -41,10 +39,5 @@
     "start-server-and-test": "^2.1.5",
     "typescript": "^5",
     "typescript-eslint": "^8.56.1"
-  },
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
   }
 }
