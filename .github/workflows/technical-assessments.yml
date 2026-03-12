@@ -1,0 +1,107 @@
+name: Technical Assessments
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "technical-assessments/**"
+      - ".github/workflows/technical-assessments.yml"
+
+jobs:
+  mini-marketplace-backend-lint:
+    name: "Mini Marketplace - Backend Lint"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: technical-assessments/fullstack-mini-marketplace/backend
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: technical-assessments/fullstack-mini-marketplace/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint:eslint:check
+      - run: npm run lint:prettier:check
+
+  mini-marketplace-frontend-lint:
+    name: "Mini Marketplace - Frontend Lint"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: technical-assessments/fullstack-mini-marketplace/frontend
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: technical-assessments/fullstack-mini-marketplace/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint:eslint:check
+      - run: npm run lint:prettier:check
+
+  mini-marketplace-backend-test:
+    name: "Mini Marketplace - Backend Test"
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: marketplace_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: marketplace_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      JWT_SECRET: ci-test-secret
+      JWT_EXPIRES_IN: 7d
+      PORT: 3001
+
+    defaults:
+      run:
+        working-directory: technical-assessments/fullstack-mini-marketplace/backend
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: technical-assessments/fullstack-mini-marketplace/backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  mini-marketplace-frontend-test:
+    name: "Mini Marketplace - Frontend Test + Build"
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      API_URL: http://localhost:3001
+
+    defaults:
+      run:
+        working-directory: technical-assessments/fullstack-mini-marketplace/frontend
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: technical-assessments/fullstack-mini-marketplace/frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

@@ -1,4 +1,4 @@
-name: Commitlint
+name: continuous-learning-and-teaching
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   commitlint:
-    name: Commitlint
+    name: CommitLint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -14,6 +14,6 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v6.3.0
         with:
-          node-version: "lts/hydrogen"
+          node-version: "lts/jod"
       - run: npm ci
       - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose

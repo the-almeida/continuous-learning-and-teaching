@@ -3,8 +3,8 @@
     { "name": "root", "path": "." },
     { "name": "coopera", "path": "coopera" },
     { "name": "superdoc-nextjs-playground", "path": "superdoc-nextjs-playground" },
-    { "name": "mini-marketplace/backend", "path": "technical-acessments/fullstack-mini-marketplace/backend" },
-    { "name": "mini-marketplace/frontend", "path": "technical-acessments/fullstack-mini-marketplace/frontend" }
+    { "name": "mini-marketplace/backend", "path": "technical-assessments/fullstack-mini-marketplace/backend" },
+    { "name": "mini-marketplace/frontend", "path": "technical-assessments/fullstack-mini-marketplace/frontend" }
   ],
   "settings": {
     "eslint.enable": true,
