@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- seed is a CLI script, console output is intentional */
 import { AppDataSource } from "./data-source";
 import * as bcrypt from "bcrypt";
 
