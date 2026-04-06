@@ -7,6 +7,7 @@ const DocumentEditor = dynamic(() => Promise.resolve(DocumentEditorComponent), {
 
 function DocumentEditorComponent({ document }) {
   const containerRef = useRef(null);
+  const toolbarRef = useRef(null);
   const superdocRef = useRef(null);
 
   useEffect(() => {
@@ -18,8 +19,27 @@ function DocumentEditorComponent({ document }) {
       if (!isMounted || !containerRef.current) return;
 
       superdocRef.current = new SuperDoc({
+        superdocId: "cvGustavoAlmeida",
         selector: containerRef.current,
         document,
+        user: {
+          name: "Gustavo Almeida",
+          email: "gustavo.s.p.almeida@gmail.com",
+          image: "what happens if I put a random string here??",
+        },
+        role: "suggester",
+        modules: {
+          toolbar: { selector: toolbarRef.current, hideButtons: false },
+        },
+        onReady: ({ superdoc }) => {
+          console.log("SuperDoc Ready", superdoc);
+        },
+        onEditorCreate: ({ editor }) => {
+          console.log("Editor is created", editor);
+        },
+        onEditorUpdate: ({ editor }) => {
+          console.log("Content changed", editor);
+        },
       });
     };
 
@@ -38,7 +58,15 @@ function DocumentEditorComponent({ document }) {
     };
   }, []);
 
-  return <div ref={containerRef} style={{ height: "700px" }} />;
+  return (
+    <>
+      <div
+        ref={toolbarRef}
+        style={{ height: "100px", width: "100%", backgroundColor: "red" }}
+      />
+      <div ref={containerRef} style={{ height: "700px" }} />
+    </>
+  );
 }
 
 export default DocumentEditor;
