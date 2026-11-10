@@ -38,3 +38,4 @@ You can change the lists at the top of the script: `TERMINAIS`, `COM_TERMINAL_EM
 2. Double-click `selecao-clique-do-meio.ahk`. It starts in the tray as a green "H" icon.
 3. To have it start with Windows, put a shortcut to the script in `shell:startup` (Win+R → `shell:startup`).
 4. For a three-finger touchpad tap: go to Settings → Devices → Touchpad → Three-finger gestures → Taps → **Middle mouse button**.
+5. Optional: to scroll with a second finger while selecting in terminals, go to Settings → Devices → Touchpad → Scroll and zoom and turn off **Pinch to zoom**. With it on, holding the click with one finger and sliding another counts as a pinch. Classic consoles (PowerShell, cmd) receive that as Ctrl+wheel and zoom instead of scrolling. Turning it off disables pinch-zoom in every app.
