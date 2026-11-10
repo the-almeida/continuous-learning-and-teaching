@@ -3,24 +3,24 @@
 Persistent
 
 ; =============================================================================
-; SeleÃ§Ã£o estilo Linux/X11 no Windows
+; Seleção estilo Linux/X11 no Windows
 ;
 ;   - Selecionar texto (arrastar, duplo ou triplo clique) guarda o texto num
-;     buffer PRÃ“PRIO do script, separado do Ctrl+C.
+;     buffer PRÓPRIO do script, separado do Ctrl+C.
 ;   - Clique do meio sobre um campo de texto cola esse buffer.
-;   - Seu Ctrl+C / Ctrl+V continua intacto: o script troca a Ã¡rea de
-;     transferÃªncia por um instante e devolve o conteÃºdo original.
+;   - Seu Ctrl+C / Ctrl+V continua intacto: o script troca a área de
+;     transferência por um instante e devolve o conteúdo original.
 ;
 ; Atalho: Ctrl+Alt+M liga/desliga o script.
 ;
-; LimitaÃ§Ã£o: o Windows sÃ³ tem UMA Ã¡rea de transferÃªncia, entÃ£o o histÃ³rico do
-; Win+V (se vocÃª usa) vai registrar as trocas momentÃ¢neas.
+; Limitação: o Windows só tem UMA área de transferência, então o histórico do
+; Win+V (se você usa) vai registrar as trocas momentâneas.
 ; =============================================================================
 
-; --- ConfiguraÃ§Ã£o ------------------------------------------------------------
+; --- Configuração ------------------------------------------------------------
 
-; Terminais: o script nÃ£o faz NADA neles. Ctrl+C lÃ¡ dentro pode interromper o
-; processo rodando, entÃ£o nem arriscamos. O clique do meio funciona normal.
+; Terminais: o script não faz NADA neles. Ctrl+C lá dentro pode interromper o
+; processo rodando, então nem arriscamos. O clique do meio funciona normal.
 TERMINAIS := [
     "WindowsTerminal.exe", "OpenConsole.exe", "conhost.exe", "cmd.exe",
     "powershell.exe", "pwsh.exe", "wsl.exe", "bash.exe", "mintty.exe",
@@ -29,7 +29,7 @@ TERMINAIS := [
     "Warp.exe"
 ]
 
-; Apps que tÃªm um terminal embutido (app do Claude, VS Code, Cursor, IDEs da
+; Apps que têm um terminal embutido (app do Claude, VS Code, Cursor, IDEs da
 ; JetBrains). Neles o script usa Ctrl+Insert para copiar e Shift+Insert para
 ; colar: esses atalhos NUNCA mandam "interromper" para um processo.
 COM_TERMINAL_EMBUTIDO := [
@@ -51,13 +51,17 @@ global ultimoSoltar := 0, contagemCliques := 0
 global meioRepassado := false
 
 CoordMode "Mouse", "Screen"
-A_IconTip := "SeleÃ§Ã£o â†’ clique do meio (Ctrl+Alt+M liga/desliga)"
+A_IconTip := "Seleção → clique do meio (Ctrl+Alt+M liga/desliga)"
 
-; --- Captura da seleÃ§Ã£o ------------------------------------------------------
+; --- Captura da seleção ------------------------------------------------------
+
+global cursorNoInicio := "", janelaNoInicio := 0, posJanelaNoInicio := ""
 
 ~LButton:: {
-    global downX, downY
-    MouseGetPos(&downX, &downY)
+    global downX, downY, cursorNoInicio, janelaNoInicio, posJanelaNoInicio
+    MouseGetPos(&downX, &downY, &janelaNoInicio)
+    cursorNoInicio := A_Cursor
+    posJanelaNoInicio := PosicaoDaJanela(janelaNoInicio)
 }
 
 ~LButton Up:: {
@@ -79,16 +83,26 @@ A_IconTip := "SeleÃ§Ã£o â†’ clique do meio (Ctrl+Alt+M liga/desliga)"
     if !(arrastou || contagemCliques >= 2)
         return
 
-    ; SÃ³ conta como seleÃ§Ã£o de texto se o cursor for o "I" de texto. Isso
-    ; descarta arrastar janelas, arquivos, barras de rolagem etc.
-    if (A_Cursor != "IBeam")
+    ; É seleção de texto quando o cursor é o "I" de texto (no começo ou no
+    ; fim), ou quando é a seta comum num arraste que não moveu a janela.
+    ; Alguns apps (ex.: o chat do app do Claude) mostram a seta sobre texto
+    ; selecionável. Cursores de redimensionar, mão (links) etc. ficam de fora,
+    ; e arrastar a janela pela barra de título é descartado porque a
+    ; posição dela muda. Arquivos arrastados são filtrados depois: só vale
+    ; se a cópia trouxer texto.
+    ehTexto := A_Cursor = "IBeam" || cursorNoInicio = "IBeam"
+    ehSetaParada := arrastou && cursorNoInicio = "Arrow" && A_Cursor = "Arrow"
+        && PosicaoDaJanela(janelaNoInicio) = posJanelaNoInicio
+    if !(ehTexto || ehSetaParada) {
+        Depurar("ignorado exe=" exe " cursorInicio=" cursorNoInicio " cursorFim=" A_Cursor " arrastou=" arrastou " cliques=" contagemCliques)
         return
+    }
 
-    ; Pequena espera para o app terminar de aplicar a seleÃ§Ã£o.
+    ; Pequena espera para o app terminar de aplicar a seleção.
     SetTimer(() => CopiarSelecao(exe), -40)
 }
 
-; --- SeleÃ§Ã£o pelo teclado (Ctrl+A, Shift+setas/Home/End/PgUp/PgDn) ---------
+; --- Seleção pelo teclado (Ctrl+A, Shift+setas/Home/End/PgUp/PgDn) ---------
 
 ~^a:: AgendarCopiaDoTeclado()
 
@@ -109,7 +123,7 @@ global selecionouComShift := false
     selecionouComShift := true
 }
 
-; A seleÃ§Ã£o com Shift sÃ³ Ã© copiada quando vocÃª solta o Shift, para nÃ£o
+; A seleção com Shift só é copiada quando você solta o Shift, para não
 ; copiar a cada tecla.
 ~Shift Up:: {
     global selecionouComShift
@@ -128,8 +142,8 @@ AgendarCopiaDoTeclado() {
     SetTimer(() => (KeyWait("Ctrl"), KeyWait("Shift"), CopiarSelecao(exe)), -60)
 }
 
-; Tempo que a seleÃ§Ã£o fica na Ã¡rea de transferÃªncia antes de o seu Ctrl+C
-; voltar. Ã‰ o que deixa o histÃ³rico do Win+V registrar cada seleÃ§Ã£o.
+; Tempo que a seleção fica na área de transferência antes de o seu Ctrl+C
+; voltar. É o que deixa o histórico do Win+V registrar cada seleção.
 TEMPO_NO_HISTORICO_MS := 700
 
 global restauracaoPendente := false
@@ -138,15 +152,19 @@ global textoPendente := ""
 
 CopiarSelecao(exe) {
     global bufferSelecao, restauracaoPendente, originalPendente, textoPendente
-    ; Se uma seleÃ§Ã£o anterior ainda estÃ¡ esperando para devolver o seu Ctrl+C,
-    ; o "original" continua sendo aquele, nÃ£o a seleÃ§Ã£o anterior.
+    ; Se uma seleção anterior ainda está esperando para devolver o seu Ctrl+C,
+    ; o "original" continua sendo aquele, não a seleção anterior.
     salvo := restauracaoPendente ? originalPendente : ClipboardAll()
     A_Clipboard := ""
     if NaLista(COM_TERMINAL_EMBUTIDO, exe)
         Send "^{Insert}"
     else
         Send "^c"
-    if (ClipWait(0.4) && A_Clipboard != "") {
+    ; CF_UNICODETEXT (13): só aceita texto. Arquivos copiados no Explorer
+    ; (CF_HDROP) não viram "seleção".
+    copiou := ClipWait(0.4, 1) && DllCall("IsClipboardFormatAvailable", "UInt", 13) && A_Clipboard != ""
+    Depurar("copiar exe=" exe " cursor=" A_Cursor " metodo=" (NaLista(COM_TERMINAL_EMBUTIDO, exe) ? "ctrl+insert" : "ctrl+c") " copiou=" copiou " chars=" StrLen(A_Clipboard))
+    if copiou {
         bufferSelecao := A_Clipboard
         restauracaoPendente := true
         originalPendente := salvo
@@ -161,7 +179,7 @@ CopiarSelecao(exe) {
 
 RestaurarOriginal() {
     global restauracaoPendente, originalPendente, textoPendente
-    ; SÃ³ devolve se ninguÃ©m copiou outra coisa nesse meio-tempo (ex.: vocÃª
+    ; Só devolve se ninguém copiou outra coisa nesse meio-tempo (ex.: você
     ; deu Ctrl+C logo depois de selecionar). '==' compara exatamente.
     if (A_Clipboard == textoPendente)
         A_Clipboard := originalPendente
@@ -182,17 +200,18 @@ MButton:: {
         && !NaLista(IGNORAR, exe)
         && A_Cursor = "IBeam"
 
+    Depurar("meio exe=" exe " cursor=" A_Cursor " buffer=" StrLen(bufferSelecao) " colar=" colar)
     if !colar {
         ; Comportamento normal do clique do meio (abrir link em nova aba,
-        ; rolagem automÃ¡tica, fechar aba...). Down aqui, Up no hotkey abaixo,
-        ; para segurar o botÃ£o continuar funcionando.
+        ; rolagem automática, fechar aba...). Down aqui, Up no hotkey abaixo,
+        ; para segurar o botão continuar funcionando.
         meioRepassado := true
         Send "{MButton down}"
         return
     }
 
     meioRepassado := false
-    ; Posiciona o cursor de texto onde vocÃª clicou, como no Linux.
+    ; Posiciona o cursor de texto onde você clicou, como no Linux.
     Click
     salvo := ClipboardAll()
     A_Clipboard := bufferSelecao
@@ -201,7 +220,7 @@ MButton:: {
         Send "+{Insert}"
     else
         Send "^v"
-    Sleep 200  ; dÃ¡ tempo do app ler a Ã¡rea de transferÃªncia
+    Sleep 200  ; dá tempo do app ler a área de transferência
     A_Clipboard := salvo
     salvo := ""
 }
@@ -219,12 +238,29 @@ MButton Up:: {
 #SuspendExempt
 ^!m:: {
     Suspend -1
-    ToolTip A_IsSuspended ? "SeleÃ§Ã£o â†’ clique do meio: DESLIGADO" : "SeleÃ§Ã£o â†’ clique do meio: LIGADO"
+    ToolTip A_IsSuspended ? "Seleção → clique do meio: DESLIGADO" : "Seleção → clique do meio: LIGADO"
     SetTimer(() => ToolTip(), -1500)
 }
 #SuspendExempt False
 
-; --- UtilitÃ¡rios -------------------------------------------------------------
+; --- Utilitários -------------------------------------------------------------
+
+; Log de diagnóstico em %TEMP%\selecao-debug.log (só metadados, nunca o
+; texto copiado). Ligue com true se algo parar de funcionar em algum app.
+MODO_DEPURACAO := false
+Depurar(msg) {
+    if MODO_DEPURACAO
+        FileAppend(FormatTime(, "HH:mm:ss") " " msg "`n", A_Temp "\selecao-debug.log", "UTF-8")
+}
+
+PosicaoDaJanela(win) {
+    try {
+        WinGetPos(&x, &y, &w, &h, "ahk_id " win)
+        return x "," y "," w "," h
+    }
+    catch
+        return ""
+}
 
 ProcessoDaJanela(win) {
     try return WinGetProcessName("ahk_id " win)
@@ -234,7 +270,7 @@ ProcessoDaJanela(win) {
 
 NaLista(lista, valor) {
     for item in lista
-        if (item = valor)  ; '=' jÃ¡ ignora maiÃºsculas/minÃºsculas
+        if (item = valor)  ; '=' já ignora maiúsculas/minúsculas
             return true
     return false
 }
