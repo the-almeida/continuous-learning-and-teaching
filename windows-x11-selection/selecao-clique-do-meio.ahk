@@ -19,8 +19,10 @@ Persistent
 
 ; --- Configuração ------------------------------------------------------------
 
-; Terminais: o script não faz NADA neles. Ctrl+C lá dentro pode interromper o
-; processo rodando, então nem arriscamos. O clique do meio funciona normal.
+; Terminais: o script NUNCA manda Ctrl+C neles (pode interromper o processo
+; rodando). Seleção com o mouse é copiada com Ctrl+Insert, o clique do meio
+; cola com Shift+Insert, e a seleção pelo teclado (Ctrl+A, Shift+setas) fica
+; desligada porque nos terminais esses atalhos editam a linha de comando.
 TERMINAIS := [
     "WindowsTerminal.exe", "OpenConsole.exe", "conhost.exe", "cmd.exe",
     "powershell.exe", "pwsh.exe", "wsl.exe", "bash.exe", "mintty.exe",
@@ -68,7 +70,10 @@ global cursorNoInicio := "", janelaNoInicio := 0, posJanelaNoInicio := ""
     global ultimoSoltar, contagemCliques
     MouseGetPos(&x, &y, &win)
     exe := ProcessoDaJanela(win)
-    if (exe = "" || NaLista(TERMINAIS, exe) || NaLista(IGNORAR, exe))
+    ; Terminais entram aqui também: neles a cópia usa Ctrl+Insert, que é
+    ; "copiar" no Windows Terminal e no console clássico e nunca manda
+    ; "interromper" para o processo (ver CopiarSelecao).
+    if (exe = "" || NaLista(IGNORAR, exe))
         return
 
     distancia := Abs(x - downX) + Abs(y - downY)
@@ -156,14 +161,17 @@ CopiarSelecao(exe) {
     ; o "original" continua sendo aquele, não a seleção anterior.
     salvo := restauracaoPendente ? originalPendente : ClipboardAll()
     A_Clipboard := ""
-    if NaLista(COM_TERMINAL_EMBUTIDO, exe)
+    ; Nunca Ctrl+C em terminais (nem nos embutidos): sem seleção ativa ele
+    ; interrompe o processo rodando. Ctrl+Insert é seguro.
+    usaInsert := NaLista(TERMINAIS, exe) || NaLista(COM_TERMINAL_EMBUTIDO, exe)
+    if usaInsert
         Send "^{Insert}"
     else
         Send "^c"
     ; CF_UNICODETEXT (13): só aceita texto. Arquivos copiados no Explorer
     ; (CF_HDROP) não viram "seleção".
     copiou := ClipWait(0.4, 1) && DllCall("IsClipboardFormatAvailable", "UInt", 13) && A_Clipboard != ""
-    Depurar("copiar exe=" exe " cursor=" A_Cursor " metodo=" (NaLista(COM_TERMINAL_EMBUTIDO, exe) ? "ctrl+insert" : "ctrl+c") " copiou=" copiou " chars=" StrLen(A_Clipboard))
+    Depurar("copiar exe=" exe " cursor=" A_Cursor " metodo=" (usaInsert ? "ctrl+insert" : "ctrl+c") " copiou=" copiou " chars=" StrLen(A_Clipboard))
     if copiou {
         bufferSelecao := A_Clipboard
         restauracaoPendente := true
@@ -194,6 +202,18 @@ MButton:: {
     global meioRepassado
     MouseGetPos(, , &win)
     exe := ProcessoDaJanela(win)
+
+    ; Terminais: clique do meio cola o buffer de seleção com Shift+Insert
+    ; (nunca manda "interromper") e nunca repassa o clique, que nos
+    ; terminais ativa a rolagem automática.
+    if NaLista(TERMINAIS, exe) {
+        meioRepassado := false
+        Depurar("meio terminal exe=" exe " buffer=" StrLen(bufferSelecao))
+        if (bufferSelecao != "")
+            ColarBuffer("+{Insert}")
+        return
+    }
+
     colar := bufferSelecao != ""
         && exe != ""
         && !NaLista(TERMINAIS, exe)
@@ -213,13 +233,14 @@ MButton:: {
     meioRepassado := false
     ; Posiciona o cursor de texto onde você clicou, como no Linux.
     Click
+    ColarBuffer(NaLista(COM_TERMINAL_EMBUTIDO, exe) ? "+{Insert}" : "^v")
+}
+
+ColarBuffer(teclas) {
     salvo := ClipboardAll()
     A_Clipboard := bufferSelecao
     ClipWait(0.4)
-    if NaLista(COM_TERMINAL_EMBUTIDO, exe)
-        Send "+{Insert}"
-    else
-        Send "^v"
+    Send teclas
     Sleep 200  ; dá tempo do app ler a área de transferência
     A_Clipboard := salvo
     salvo := ""

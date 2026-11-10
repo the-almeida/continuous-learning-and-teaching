@@ -13,8 +13,11 @@ An AutoHotkey v2 script that brings Linux/X11-style "select to copy, middle-clic
 
 ## Safety around terminals
 
-- **Terminals are skipped entirely** (Windows Terminal, conhost, PowerShell, cmd, WSL, mintty, Alacritty, WezTerm, …). Sending Ctrl+C there can interrupt a running process.
-- **Apps with an embedded terminal** (the Claude app, VS Code, Cursor, JetBrains IDEs) get **Ctrl+Insert** to copy and **Shift+Insert** to paste. Those shortcuts never send an interrupt.
+- **The script never sends Ctrl+C to a terminal.** This covers Windows Terminal, conhost, PowerShell, cmd, WSL, mintty, Alacritty, WezTerm and the others in the list. Without an active selection, Ctrl+C interrupts the running process.
+- **In terminals:** a mouse selection is copied with **Ctrl+Insert**, and a middle click pastes the selection buffer with **Shift+Insert**. Neither shortcut ever sends an interrupt. The middle click is never passed through, because terminals turn it into autoscroll. Keyboard selection (Ctrl+A, Shift+arrows) is off there, since those keys edit the command line.
+- **Apps with an embedded terminal** (the Claude app, VS Code, Cursor, JetBrains IDEs) also use Ctrl+Insert / Shift+Insert.
+- **Arrow cursor over text:** some apps (e.g. the Claude desktop chat) show the arrow over selectable text. Arrow-cursor drags count as selections as long as they don't move the window. A selection is only kept when the copy yields text, so dragged files never fill the buffer.
+- **Debugging:** set `MODO_DEPURACAO := true` to log metadata only (app, cursor, method, success, length; never the text) to `%TEMP%\selecao-debug.log`.
 
 You can change the lists at the top of the script: `TERMINAIS`, `COM_TERMINAL_EMBUTIDO` and `IGNORAR`. The comments in the script are in Portuguese.
 
