@@ -19,8 +19,35 @@ function normalize(command) {
   return command.trim().replace(/\s+/g, ' ')
 }
 
-export function runCheck(workRoot, workDir, phase, command, { timeoutSec = 1800, fingerprint }) {
-  if (!['baseline', 'final'].includes(phase)) throw new Error(`phase must be "baseline" or "final", not "${phase}"`)
+// Variables a build or test needs that carry no credentials. Everything else
+// (tokens, keys, cloud credentials in the operator's shell) is left out.
+const SAFE_ENV = [
+  'PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'SystemDrive', 'ComSpec', 'COMSPEC', 'windir', 'WINDIR', 'OS',
+  'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'LANG', 'LANGUAGE', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TZ', 'SHELL',
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy',
+  'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE', 'GIT_SSL_CAINFO',
+]
+
+/** An environment for untrusted code: no credentials, and a throwaway home, cache and temp folder. */
+export function scrubbedEnv(workRoot) {
+  const home = path.join(workRoot, 'sandbox-home')
+  const tmp = path.join(workRoot, 'sandbox-tmp')
+  for (const d of [home, tmp]) fs.mkdirSync(d, { recursive: true })
+  const env = {
+    HOME: home, USERPROFILE: home, APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
+    XDG_CONFIG_HOME: path.join(home, '.config'), XDG_CACHE_HOME: path.join(home, '.cache'), TMPDIR: tmp, TMP: tmp, TEMP: tmp,
+  }
+  for (const k of SAFE_ENV) if (process.env[k] !== undefined) env[k] = process.env[k]
+  return env
+}
+
+/**
+ * phase: 'setup' (an install step, recorded but not compared), 'baseline'
+ * (before cleaning) or 'final' (after). `scrub` runs the command without the
+ * operator's credentials; `approval` records who allowed untrusted code to run.
+ */
+export function runCheck(workRoot, workDir, phase, command, { timeoutSec = 1800, fingerprint, scrub = false, approval }) {
+  if (!['setup', 'baseline', 'final'].includes(phase)) throw new Error(`phase must be "setup", "baseline" or "final", not "${phase}"`)
   const checks = loadChecks(workRoot)
   const cmd = normalize(command)
   if (phase === 'final' && !checks.runs.some((r) => r.phase === 'baseline' && r.command === cmd)) {
@@ -33,7 +60,7 @@ export function runCheck(workRoot, workDir, phase, command, { timeoutSec = 1800,
     encoding: 'utf8',
     maxBuffer: 1 << 28,
     timeout: timeoutSec * 1000,
-    env: { ...process.env, CI: 'true', NO_COLOR: '1', FORCE_COLOR: '0' },
+    env: { ...(scrub ? scrubbedEnv(workRoot) : process.env), CI: 'true', NO_COLOR: '1', FORCE_COLOR: '0' },
   })
   fs.mkdirSync(path.join(workRoot, 'logs'), { recursive: true })
   const log = path.join(workRoot, 'logs', `${phase}-${checks.runs.length + 1}.log`)
@@ -47,6 +74,8 @@ export function runCheck(workRoot, workDir, phase, command, { timeoutSec = 1800,
     error: result.error && result.error.code !== 'ETIMEDOUT' ? String(result.error.message) : undefined,
     durationMs: Date.now() - started,
     fingerprint,
+    scrubbedEnv: scrub,
+    approval,
     log,
     at: new Date().toISOString(),
   }

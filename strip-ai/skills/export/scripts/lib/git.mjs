@@ -2,8 +2,13 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+// A repository received as an archive can carry its own .git/config, and
+// core.fsmonitor there runs a command on every status or ls-files. It is
+// switched off for every call.
+const SAFE = ['-c', 'core.fsmonitor=false']
+
 export function git(cwd, args, options = {}) {
-  return execFileSync('git', args, {
+  return execFileSync('git', [...SAFE, ...args], {
     cwd,
     encoding: 'utf8',
     maxBuffer: 1 << 30,

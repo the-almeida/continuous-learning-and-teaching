@@ -58,7 +58,12 @@ export function canSymlink(dir) {
 
 /** Runs the CLI. Returns { status, stdout, stderr, json } where json parses the last JSON object printed. */
 export function cli(...args) {
-  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
+  return cliEnv({}, ...args)
+}
+
+/** Same, with extra environment variables for the CLI process. */
+export function cliEnv(env, ...args) {
+  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', maxBuffer: 1 << 26, env: { ...process.env, ...env } })
   const json = () => {
     const start = r.stdout.lastIndexOf('\n{') + 1
     return JSON.parse(r.stdout.slice(start))

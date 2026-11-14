@@ -9,13 +9,18 @@ import { canaries } from './leaks.mjs'
  */
 export function scanContext(identity, { rules = identityRules(identity), originals = [], aiNames = [] } = {}) {
   const matcher = createIdentityMatcher(rules)
+  const thirdParty = identity.mode === 'third-party'
+  // Contributors' emails are caught by the email pattern wherever they appear; as byte-level
+  // canaries only the operator's own emails count, which keeps big projects fast.
+  const emails = thirdParty ? identity.operator?.emails ?? [] : identity.emails
   return {
     identity,
     matcher,
+    keepNotices: thirdParty,
     cleanPath: (p) => matcher.replace(p, (m, rule) => matchCase(m, rule.placeholder)),
     aiNames,
     originals: canaries(originals),
-    allValues: canaries(rules.map((r) => r.literal), identity.emails, identity.literals.map((l) => l.value), originals),
+    allValues: canaries(rules.map((r) => r.literal), emails, identity.literals.map((l) => l.value), originals),
     tokens: identityTokens(identity),
   }
 }

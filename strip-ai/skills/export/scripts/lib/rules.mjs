@@ -355,6 +355,20 @@ export function isRealSsn(match) {
   return !EXAMPLE_SSNS.has(match)
 }
 
+// License notices, which licenses like MIT and Apache require to be kept as
+// they are. In third-party projects these files and copyright lines are
+// exported verbatim.
+const LICENSE_FILE_RE = /(^|\/)(?:LICEN[CS]E|COPYING|NOTICE|COPYRIGHT|UNLICENSE|PATENTS)(?:[.-][^/]*)?$|(^|\/)LICENSES\/[^/]+$/i
+const COPYRIGHT_LINE_RE = /^[^A-Za-z0-9]{0,6}\s*(?:copyright\b|\(c\)\s*(?:19|20)\d\d|\u00a9|spdx-filecopyrighttext:)/i
+
+export function isLicenseFile(relPath) {
+  return LICENSE_FILE_RE.test(relPath)
+}
+
+export function isCopyrightLine(line) {
+  return COPYRIGHT_LINE_RE.test(line)
+}
+
 export const DOCUMENT_EXTENSIONS = new Set([
   'pdf', 'doc', 'docx', 'odt', 'rtf', 'xls', 'xlsx', 'ods', 'csv', 'tsv',
   'ppt', 'pptx', 'odp', 'sqlite', 'sqlite3', 'db', 'mdb', 'eml', 'msg', 'vcf',

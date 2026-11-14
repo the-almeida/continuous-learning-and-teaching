@@ -3,13 +3,14 @@
 // this script does everything that can be checked, and refuses to move on
 // while anything is unchecked. `status` always says what is next.
 //
-//   prepare <project>                         copy the project into a new work dir
+//   prepare <project> [--own|--third-party]   copy the project into a new work dir
 //   env-in <WR>                               copy the source's ignored .env files in, for test runs only
-//   check <WR> baseline|final "<command>"     run a project check and record its result
+//   check <WR> setup|baseline|final "<command>" [--approved "<who allowed it>"]
+//                                             run a project command and record its result
 //   check <WR> baseline --none "<reason>"     record that the project has no checks
 //   strip <WR>                                delete AI tooling files and folders
 //   inventory <WR>                            list candidate identifiers (domains, profiles, authors, emails)
-//   identity <WR> list|add <kind> <value> [--as <placeholder>]|remove <value>|confirm
+//   identity <WR> list [--all]|add <kind> <value> [--as <placeholder>]|remove <value>|confirm
 //   scan <WR> [--all]                         list findings that still need a fix or a decision
 //   redact <WR>                               replace PII, secrets, personal documents and image metadata
 //   placeholder <WR> <file>                   replace one document's content with a same-type placeholder
@@ -28,10 +29,10 @@ import { checkFindings, checkTable, loadChecks, recordNoChecks, runCheck } from 
 import { addDecision, decisionFor, loadDecisions, unresolved, validateReason } from './lib/decisions.mjs'
 import { changedSinceBaseline, diffFindings } from './lib/diff.mjs'
 import { PLACEHOLDER_FORMATS, placeholderFor } from './lib/documents.mjs'
-import { native, readJson, sha256, writeJson } from './lib/files.mjs'
+import { native, readJson, readText, sha256, writeJson } from './lib/files.mjs'
 import { listIgnoredFiles, listSourceFiles } from './lib/git.mjs'
 import { scanContext } from './lib/context.mjs'
-import { collectIdentities, identityTokens, personalDomains } from './lib/identity.mjs'
+import { collectIdentities, identityTokens, keepSeenPeople, personalDomains, wordsOf } from './lib/identity.mjs'
 import { buildInventory } from './lib/inventory.mjs'
 import { findLeaks, findTokens } from './lib/leaks.mjs'
 import { redactTree } from './lib/redact.mjs'
@@ -109,12 +110,28 @@ function printFindings(list, decisions, limit = 300) {
 
 // ---------------------------------------------------------------- commands
 
-function prepare(projectArg) {
+function prepare(projectArg, flags) {
+  if (flags.own && flags['third-party']) fail('pass --own or --third-party, not both')
+  const mode = flags.own ? 'own' : flags['third-party'] ? 'third-party' : 'auto'
   const { workRoot, state } = prepareWork(projectArg ?? process.cwd())
-  const identity = collectIdentities(state.source)
+  let identity = collectIdentities(state.source, { mode: !state.fromGit && mode === 'auto' ? 'third-party' : mode })
+  if (!state.fromGit && mode === 'auto') identity.modeReason = 'not a git repo, so ownership is unknown: pass --own if it is yours'
+  if (identity.mode === 'third-party') {
+    // Thousands of contributors: keep only those whose names occur in the files at all.
+    const words = new Set()
+    for (const rel of exportFiles(workRoot, state)) {
+      const text = readText(native(state.workDir, rel))
+      if (text !== null) for (const w of wordsOf(text)) words.add(w)
+    }
+    identity = keepSeenPeople(identity, words)
+  }
   saveIdentity(workRoot, identity)
+  state.mode = identity.mode
+  saveState(workRoot, state)
   print({
     workRoot,
+    mode: identity.mode,
+    modeReason: identity.modeReason,
     files: state.sourceFiles.length,
     untracked: state.untracked.length,
     lineEndingsNormalized: state.normalizedLineEndings.length,
@@ -124,17 +141,31 @@ function prepare(projectArg) {
       untrackedInDependencyFolders: state.skipped.heavyUntracked,
       missingInWorktree: state.skipped.missingInWorktree.length,
     },
-    identities: { names: identity.names.length, emails: identity.emails.length, handles: identity.handles.length, domains: identity.domains.length, dropped: identity.dropped.length },
+    identities: {
+      names: identity.names.length,
+      emails: identity.emails.length,
+      handles: identity.handles.length,
+      domains: identity.domains.length,
+      dropped: identity.dropped.length,
+      ...(identity.unseen ? { contributorsNotInFiles: identity.unseen } : {}),
+    },
     warnings: [
       ...(state.shallow ? ['shallow clone: authors of older commits are unknown. Add them with "identity add".'] : []),
       ...(state.fromGit ? [] : ['not a git repo: no identities were collected. Add them with "identity add".']),
     ],
-    next: `env-in ${workRoot}, install dependencies in ${state.workDir}, then "check ${workRoot} baseline <command>" for each check`,
+    next:
+      identity.mode === 'third-party'
+        ? 'third-party code: ask the user before running anything. If they approve, run installs and checks with "check ... --approved <reason>"; if not, "check <WR> baseline --none <reason>"'
+        : `env-in ${workRoot}, install dependencies in ${state.workDir}, then "check ${workRoot} baseline <command>" for each check`,
   })
 }
 
-function envIn(workRoot) {
+function envIn(workRoot, flags) {
   const state = loadState(workRoot)
+  // Secrets the user put in a third-party project's .env would reach that project's untrusted code.
+  if (state.mode === 'third-party' && flags.approved === undefined) {
+    fail('third-party project: its code would read these .env files. Ask the user, then pass --approved "<who approved and when>"')
+  }
   if (!state.fromGit) return print({ copied: [], note: 'source is not a git repo; nothing is ignored' })
   const copied = []
   for (const rel of listIgnoredFiles(state.source)) {
@@ -158,9 +189,20 @@ function check(workRoot, phase, args, flags) {
   }
   const command = args.join(' ')
   if (!command.trim()) fail('pass the command to run, in quotes')
-  const { run, tail } = runCheck(workRoot, state.workDir, phase, command, { timeoutSec: Number(flags.timeout ?? 1800), fingerprint: treeFingerprint(workRoot, state) })
+  // Untrusted code only runs with the user's explicit go-ahead, and never sees their credentials.
+  const thirdParty = state.mode === 'third-party'
+  if (thirdParty && flags.approved === undefined) {
+    fail('this is a third-party project: running its code needs the user\'s approval. Ask them, then pass --approved "<who approved and when>"')
+  }
+  const approval = flags.approved !== undefined ? validateReason(flags.approved) : undefined
+  const { run, tail } = runCheck(workRoot, state.workDir, phase, command, {
+    timeoutSec: Number(flags.timeout ?? 1800),
+    fingerprint: treeFingerprint(workRoot, state),
+    scrub: thirdParty,
+    approval,
+  })
   console.log(tail)
-  print({ phase, command: run.command, exitCode: run.exitCode, timedOut: run.timedOut, seconds: Math.round(run.durationMs / 1000), log: run.log })
+  print({ phase, command: run.command, exitCode: run.exitCode, timedOut: run.timedOut, scrubbedEnv: run.scrubbedEnv, seconds: Math.round(run.durationMs / 1000), log: run.log })
 }
 
 function strip(workRoot) {
@@ -191,9 +233,13 @@ function strip(workRoot) {
 
 function inventory(workRoot) {
   const state = loadState(workRoot)
+  const identity = loadIdentity(workRoot)
   const inv = buildInventory(state.workDir, exportFiles(workRoot, state))
   print({
     note: 'Raw values, for this session only. Add every one that identifies a real person (the owner or anyone else): identity add <kind> <value>.',
+    remoteOwners: identity.remoteOwners?.length
+      ? { values: identity.remoteOwners, note: 'Owner of the remote. Not redacted: add it as a handle only if it is a person, not an organization.' }
+      : undefined,
     emails: inv.emails,
     domains: inv.domains,
     profiles: inv.profiles,
@@ -208,17 +254,24 @@ function identityCmd(workRoot, sub, args, flags) {
   const identity = loadIdentity(workRoot)
   const kinds = { name: 'names', handle: 'handles', email: 'emails', domain: 'domains' }
   if (sub === 'list' || !sub) {
+    const cap = (list) => (flags.all || list.length <= 50 ? list : [...list.slice(0, 50), `… ${list.length - 50} more (--all)`])
     return print({
       version: identity.version,
+      mode: identity.mode,
+      modeReason: identity.modeReason,
       confirmed: state.steps.identity?.version === identity.version,
-      names: identity.names,
-      emails: identity.emails,
-      handles: identity.handles,
+      operator: identity.operator,
+      names: cap(identity.names),
+      emails: cap(identity.emails),
+      handles: cap(identity.handles),
       domains: identity.domains,
       literals: identity.literals,
-      dropped: identity.dropped,
+      dropped: cap(identity.dropped),
       tokens: identityTokens(identity),
-      note: 'Raw values, for this session only. Remove common words that are not people; add what is missing.',
+      note:
+        identity.mode === 'third-party'
+          ? 'Third-party project: contributors are matched by full name and email; only the operator is searched piece by piece. Remove entries that are organizations, not people. Every domain listed is replaced everywhere.'
+          : 'Raw values, for this session only. Remove common words and company domains that are not people; add what is missing.',
     })
   }
   if (sub === 'add') {
@@ -267,7 +320,10 @@ function redact(workRoot) {
   if (!state.steps.strip) fail('run "strip" first')
   if (!state.steps.inventory) fail('review the inventory first: "inventory <WR>", then add any identifier it shows with "identity add"')
   if (state.steps.identity?.version !== identity.version) fail('confirm the identity list first: "identity <WR> list", then "identity <WR> confirm"')
-  const { rawOriginals, renamedRaw, rules, ...result } = redactTree(state.workDir, exportFiles(workRoot, state), identity, { isSymlink: (rel) => isSymlinkEntry(state, rel) })
+  const { rawOriginals, renamedRaw, rules, ...result } = redactTree(state.workDir, exportFiles(workRoot, state), identity, {
+    isSymlink: (rel) => isSymlinkEntry(state, rel),
+    keepNotices: identity.mode === 'third-party',
+  })
   writeJson(workPath(workRoot, 'originals.json'), [...new Set([...loadOriginals(workRoot), ...rawOriginals])])
   writeJson(workPath(workRoot, 'rules.json'), { identityVersion: identity.version, rules })
   const previous = readJson(workPath(workRoot, 'redactions.json'), null)
@@ -287,6 +343,7 @@ function redact(workRoot) {
     replacedDocuments: result.replacedDocuments,
     documentsNeedingAction: result.documentsNeedingAction.map((d) => ({ ...d, action: `no placeholder builder for this type (supported: ${PLACEHOLDER_FORMATS.join(', ')}): write a neutral file of the same type` })),
     strippedImageMetadata: result.strippedMetadata,
+    licenseNoticesKept: result.keptNotices.length ? result.keptNotices : undefined,
     redactions: result.redactions.map((r) => `${r.category}: ${r.original} -> ${r.placeholder} (${r.count}x in ${r.files.length} file(s))`),
     suspiciousIdentities: result.suspiciousIdentities.length
       ? result.suspiciousIdentities.map((s) => `${s.literal} replaced ${s.count} times: check it is a person, not a common word`)
@@ -303,6 +360,7 @@ function mergeRedactions(a, b) {
     renamed: [...a.renamed, ...b.renamed],
     replacedDocuments: [...a.replacedDocuments, ...b.replacedDocuments],
     strippedMetadata: [...a.strippedMetadata, ...b.strippedMetadata],
+    keptNotices: [...new Set([...(a.keptNotices ?? []), ...(b.keptNotices ?? [])])],
     redactions: [...a.redactions, ...b.redactions],
   }
 }
@@ -375,6 +433,7 @@ function status(workRoot) {
     ['zip verified', Boolean(zipValid), state.zip ? (zipValid ? `${state.zip.path} (${state.zip.tool})` : 'stale: files changed after zip, zip again') : 'not built'],
     ['finalize', Boolean(zipValid && state.steps.finalize && state.report?.zipSha256 === state.zip.sha256), state.steps.finalize ?? 'not run'],
   ]
+  console.log(`mode: ${state.mode ?? 'own'}${identity.modeReason ? ` (${identity.modeReason})` : ''}`)
   for (const [name, done, detail] of steps) console.log(`${done ? '✓' : '✗'} ${name.padEnd(20)} ${detail ?? ''}`)
   const next = steps.find(([, done]) => !done)
   console.log(next ? `\nNext: ${next[0]}` : '\nREADY: nothing left to do.')
@@ -464,6 +523,8 @@ function zip(workRoot, flags) {
       verifier: verification.tool,
       independent: verification.independent,
       date: now().slice(0, 10),
+      mode: state.mode,
+      keptNotices: redactions.keptNotices ?? [],
       shallow: state.shallow,
       noChecks: checks.none?.reason,
       checks: checkTable(checks),
@@ -560,11 +621,13 @@ function cleanup(workRoot, flags) {
 function parseArgs(argv) {
   const flags = {}
   const positional = []
-  const valued = new Set(['--name', '--out', '--reason', '--rule', '--file', '--as', '--timeout', '--none'])
+  const valued = new Set(['--name', '--out', '--reason', '--rule', '--file', '--as', '--timeout', '--none', '--approved'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (valued.has(a)) flags[a.slice(2)] = argv[++i] ?? ''
     else if (a === '--all') flags.all = true
+    else if (a === '--own') flags.own = true
+    else if (a === '--third-party') flags['third-party'] = true
     else if (a === '--stale') flags.stale = true
     else positional.push(a)
   }
@@ -575,8 +638,8 @@ const [command, ...rest] = process.argv.slice(2)
 const { flags, positional } = parseArgs(rest)
 const [wr, ...more] = positional
 const commands = {
-  prepare: () => prepare(wr),
-  'env-in': () => envIn(wr),
+  prepare: () => prepare(wr, flags),
+  'env-in': () => envIn(wr, flags),
   check: () => check(wr, more[0], more.slice(1), flags),
   strip: () => strip(wr),
   inventory: () => inventory(wr),

@@ -32,6 +32,7 @@ export function buildReport(d) {
         ['SHA-256', `\`${d.sha256}\``],
         ['Files', `${d.files} (${d.bytes} bytes)`],
         ['Verified by', `${d.verifier}${d.independent ? '' : ' (not independent)'}, ${d.files} files compared byte for byte, then scanned again`],
+        ['Project', d.mode === 'third-party' ? 'third-party: contributors\' full names and emails redacted, license notices kept verbatim' : 'own project'],
         ['Date', d.date],
       ],
     ),
@@ -40,7 +41,11 @@ export function buildReport(d) {
 
   out.push('## Checks\n')
   if (d.noChecks) out.push(`No checks were run: ${d.noChecks}\n`)
-  else out.push(table(['Command', 'Before cleaning', 'After cleaning'], d.checks.map((c) => [`\`${c.command}\``, exit(c.baseline), exit(c.final)])))
+  else {
+    out.push(table(['Command', 'Before cleaning', 'After cleaning'], d.checks.map((c) => [`\`${c.command}\``, exit(c.baseline), exit(c.final)])))
+    const approvals = [...new Set(d.checks.flatMap((c) => [c.baseline?.approval, c.final?.approval]).filter(Boolean))]
+    if (approvals.length) out.push(`Third-party code was run with the user's approval (${approvals.join('; ')}), without the operator's credentials (scrubbed environment, throwaway home).\n`)
+  }
 
   out.push('## Removed AI tooling\n')
   out.push(list(d.removedAi.map((p) => `\`${p}\``)))
@@ -55,6 +60,7 @@ export function buildReport(d) {
   if (d.replacedDocuments.length) out.push(`Documents replaced by placeholders:\n\n${list(d.replacedDocuments.map((r) => `\`${r.file}\`: ${r.reasons.join(', ')}`))}`)
   if (d.strippedMetadata.length) out.push(`Image metadata stripped (photos may now display rotated):\n\n${list(d.strippedMetadata.map((r) => `\`${r.file}\`: ${r.removed.join(', ')}`))}`)
   if (d.normalized.length) out.push(`Line endings converted from CRLF to LF (git stores them as LF): ${d.normalized.length} file(s).\n`)
+  if (d.keptNotices?.length) out.push(`License notices kept verbatim, as their licenses require:\n\n${list(d.keptNotices.map((f) => `\`${f}\``))}Copyright lines in file headers were kept verbatim too.\n`)
 
   out.push('## Tests coupled to PII\n')
   out.push(`${TODO} Table: Test (file › name) | Depended on | How it broke | Fix. Write "None." if no test broke.\n`)

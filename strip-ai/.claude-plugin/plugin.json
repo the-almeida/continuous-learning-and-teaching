@@ -1,6 +1,6 @@
 {
   "name": "strip-ai",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Export a codebase as a zip with every AI-assistant trace removed and PII/secrets redacted. Checks run before and after, every leftover needs a recorded decision, and the zip is verified by an independent extractor.",
   "author": {
     "name": "the-almeida"

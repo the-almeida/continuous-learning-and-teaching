@@ -15,7 +15,8 @@ import { findLeaks, findTokens } from './leaks.mjs'
 import {
   AI_TEXT_RULES, CARD_RE, CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_SECRET_RE, GENERIC_USERS, HOME_PATH_RE, IBAN_RE,
   IPV4_RE, LOCKFILES, PHONE_RES, SECRET_ASSIGNMENT_RE, SECRET_RULES, SSN_RE, URL_CREDENTIALS_RE, aiPathTerm,
-  aiPathToRemove, classifyEmail, isEnvFile, isFixtureUrlCredential, isPublicIp, isPublishedExample, isRealCard,
+  aiPathToRemove, classifyEmail, isCopyrightLine, isEnvFile, isFixtureUrlCredential, isLicenseFile, isPublicIp,
+  isPublishedExample, isRealCard,
   isRealCnpj, isRealCpf, isRealIban, isRealSsn, isUrlCredentialContext, looksLikeRealSecret, mask,
 } from './rules.mjs'
 
@@ -66,13 +67,27 @@ function maskExcerpt(line, ctx) {
  * ctx: { matcher, aiNames, originals (lowercased raw values already
  * redacted), tokens (identity pieces) }
  */
+// Personal data that a kept license notice may carry (third-party projects).
+const NOTICE_RULES = new Set(['identity', 'email', 'phone', 'home-path'])
+
+/** Text with copyright lines blanked, for checks that must not count kept notices. */
+export function withoutNotices(text) {
+  return text.replace(/^.*$/gm, (line) => (isCopyrightLine(line) ? '' : line))
+}
+
 export function scanText(relPath, text, ctx) {
   const findings = []
   const at = lineIndex(text)
   const base = path.posix.basename(relPath).toLowerCase()
   const lockfile = LOCKFILES.has(base)
-  const add = (rule, severity, index, raw, shown = mask(raw)) =>
+  const licenseFile = ctx.keepNotices && isLicenseFile(relPath)
+  const add = (rule, severity, index, raw, shown = mask(raw)) => {
+    if (ctx.keepNotices && NOTICE_RULES.has(rule) && (licenseFile || isCopyrightLine(lineAt(text, index)))) {
+      severity = 'fixture'
+      shown = `kept (license notice): ${shown}`
+    }
     findings.push({ id: findingId(rule, relPath, raw), rule, severity, file: relPath, line: at(index), value: shown })
+  }
 
   if (!lockfile) {
     for (const { id, re } of [...AI_TEXT_RULES, ...aiNameRules(ctx.aiNames)]) {
@@ -173,9 +188,19 @@ export function scanFile(workDir, relPath, ctx, { symlink = false } = {}) {
   const leakRule = isBinary(buf) ? 'known-value-in-binary' : 'redacted-value-left'
   const values = isBinary(buf) ? ctx.allValues : ctx.originals
   if (!isBinary(buf)) {
-    findings.push(...scanText(relPath, buf.toString('utf8'), ctx))
+    const text = buf.toString('utf8')
+    findings.push(...scanText(relPath, text, ctx))
     if (isDocument(relPath)) {
       findings.push({ id: findingId('document', relPath, 'text'), rule: 'document', severity: 'review', file: relPath, line: 0, value: 'text data file: check rows for personal data' })
+    }
+    if (ctx.keepNotices) {
+      // Leaks and identity pieces are counted outside kept license notices only.
+      const outside = Buffer.from(isLicenseFile(relPath) ? '' : withoutNotices(text))
+      for (const leak of findLeaks(relPath, outside, ctx.originals)) {
+        findings.push({ id: findingId(leakRule, relPath, leak.value), rule: leakRule, severity: 'block', file: relPath, line: 0, value: `${leak.masked} in ${leak.where}` })
+      }
+      findings.push(...tokenFindings(relPath, outside, ctx))
+      return findings
     }
   } else {
     const docFindings = isDocument(relPath) ? scanDocument(relPath, buf, ctx) : []

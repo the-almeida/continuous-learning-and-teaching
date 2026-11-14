@@ -69,7 +69,7 @@ function originalRange(text, map, start, end) {
 }
 
 export function emptyIdentity() {
-  return { version: 1, names: [], emails: [], handles: [], domains: [], literals: [], dropped: [] }
+  return { version: 1, mode: 'own', names: [], emails: [], handles: [], domains: [], literals: [], dropped: [], operator: { names: [], emails: [], handles: [] }, remoteOwners: [] }
 }
 
 /** Domains of the owner's own mailboxes, as in me@maria-silva.dev. Public providers are skipped. */
@@ -84,64 +84,70 @@ function parsePerson(text) {
   return m ? { name: m[1], email: m[2] } : {}
 }
 
-export function collectIdentities(sourceDir) {
-  const names = new Set()
-  const emails = new Set()
-  const handles = new Set()
-  const dropped = []
+/** The person running the export: their global git identity and OS user. */
+export function readOperator() {
+  const home = os.homedir()
+  return {
+    name: tryGit(home, ['config', '--global', 'user.name'])?.trim(),
+    email: tryGit(home, ['config', '--global', 'user.email'])?.trim(),
+    osUser: os.userInfo().username,
+  }
+}
 
-  const addName = (raw) => {
+function collector() {
+  const c = { names: new Set(), emails: new Set(), handles: new Set(), dropped: [] }
+  c.addName = (raw, { singleWord = true } = {}) => {
     const name = (raw ?? '').trim().replace(/\s+/g, ' ')
     if (!name) return
-    if (name.length < 4) return dropped.push({ kind: 'name', value: name, reason: 'shorter than 4 characters' })
-    if (SYSTEM_NAMES.test(name)) return dropped.push({ kind: 'name', value: name, reason: 'system or placeholder account' })
-    if (!name.includes(' ') && COMMON_WORDS.has(name.toLowerCase())) return dropped.push({ kind: 'name', value: name, reason: 'common word' })
-    names.add(name)
+    if (name.length < 4) return c.dropped.push({ kind: 'name', value: name, reason: 'shorter than 4 characters' })
+    if (SYSTEM_NAMES.test(name)) return c.dropped.push({ kind: 'name', value: name, reason: 'system or placeholder account' })
+    if (!name.includes(' ')) {
+      if (COMMON_WORDS.has(name.toLowerCase())) return c.dropped.push({ kind: 'name', value: name, reason: 'common word' })
+      if (!singleWord) return c.dropped.push({ kind: 'name', value: name, reason: 'single-word contributor name (only full names are matched)' })
+    }
+    c.names.add(name)
   }
-  const addHandle = (raw) => {
+  c.addHandle = (raw) => {
     const handle = (raw ?? '').trim()
     if (!handle) return
-    if (handle.length < 4) return dropped.push({ kind: 'handle', value: handle, reason: 'shorter than 4 characters' })
+    if (handle.length < 4) return c.dropped.push({ kind: 'handle', value: handle, reason: 'shorter than 4 characters' })
     const lower = handle.toLowerCase()
-    if (COMMON_WORDS.has(lower) || GENERIC_USERS.has(lower)) return dropped.push({ kind: 'handle', value: handle, reason: 'common word' })
-    handles.add(handle)
+    if (COMMON_WORDS.has(lower) || GENERIC_USERS.has(lower)) return c.dropped.push({ kind: 'handle', value: handle, reason: 'common word' })
+    c.handles.add(handle)
   }
-  const addPerson = (name, email) => {
+  c.addPerson = (name, email, options) => {
     if (BOT_PATTERN.test(`${name ?? ''} ${email ?? ''}`)) return
-    addName(name)
+    c.addName(name, options)
     const e = (email ?? '').trim().toLowerCase()
     if (!e || SYSTEM_EMAILS.has(e) || !e.includes('@')) return
-    emails.add(e)
+    c.emails.add(e)
     const gh = /^(?:\d+\+)?([^@]+)@users\.noreply\.(?:github|gitlab)\.com$/.exec(e)
-    if (gh) addHandle(gh[1])
+    if (gh) c.addHandle(gh[1])
   }
+  return c
+}
 
+/** People recorded in the project: commit authors, co-authors, package.json, CODEOWNERS. */
+function projectPeople(sourceDir, options) {
+  const c = collector()
   const log = tryGit(sourceDir, ['log', '--all', '--format=%an%x00%ae%x00%cn%x00%ce'])
   for (const line of (log ?? '').split('\n').filter(Boolean)) {
     const [an, ae, cn, ce] = line.split('\0')
-    addPerson(an, ae)
-    addPerson(cn, ce)
+    c.addPerson(an, ae, options)
+    c.addPerson(cn, ce, options)
   }
   const trailers = tryGit(sourceDir, ['log', '--all', '--format=%(trailers:key=Co-authored-by,key=Signed-off-by,valueonly)'])
   for (const line of (trailers ?? '').split('\n').filter(Boolean)) {
     const p = parsePerson(line)
-    addPerson(p.name, p.email)
+    c.addPerson(p.name, p.email, options)
   }
-  addPerson(tryGit(sourceDir, ['config', 'user.name'])?.trim(), tryGit(sourceDir, ['config', 'user.email'])?.trim())
-
-  const remotes = tryGit(sourceDir, ['remote', '-v']) ?? ''
-  for (const m of remotes.matchAll(/(?:github\.com|gitlab\.com|bitbucket\.org)[:/]([A-Za-z0-9_.-]+)\//g)) addHandle(m[1])
-
-  const osUser = os.userInfo().username
-  if (osUser) addHandle(osUser)
-
   const pkgPath = path.join(sourceDir, 'package.json')
   if (fs.existsSync(pkgPath)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
       for (const a of [pkg.author, ...(pkg.contributors ?? []), ...(pkg.maintainers ?? [])].filter(Boolean)) {
         const p = typeof a === 'string' ? parsePerson(a) : a
-        addPerson(p.name, p.email)
+        c.addPerson(p.name, p.email, options)
       }
     } catch {
       // A malformed package.json is reported by the project's own tooling.
@@ -151,14 +157,79 @@ export function collectIdentities(sourceDir) {
     const file = path.join(sourceDir, rel)
     if (!fs.existsSync(file)) continue
     const text = fs.readFileSync(file, 'utf8')
-    for (const m of text.matchAll(/(?<![\w/])@([A-Za-z0-9-]+)(?![\w/])/g)) addHandle(m[1])
-    for (const m of text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) addPerson(undefined, m[0])
+    for (const m of text.matchAll(/(?<![\w/])@([A-Za-z0-9-]+)(?![\w/])/g)) c.addHandle(m[1])
+    for (const m of text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) c.addPerson(undefined, m[0], options)
   }
+  return c
+}
 
-  const emailList = [...emails]
-  const seenDropped = new Set()
-  const uniqueDropped = dropped.filter((d) => !seenDropped.has(`${d.kind}\0${d.value}`) && seenDropped.add(`${d.kind}\0${d.value}`))
-  return { ...emptyIdentity(), names: [...names], emails: emailList, handles: [...handles], domains: personalDomains(emailList), dropped: uniqueDropped }
+function remoteOwners(sourceDir) {
+  const remotes = tryGit(sourceDir, ['remote', '-v']) ?? ''
+  return [...new Set([...remotes.matchAll(/(?:github\.com|gitlab\.com|bitbucket\.org)[:/]([A-Za-z0-9_.-]+)\//g)].map((m) => m[1]))]
+}
+
+/**
+ * Own project: everyone recorded in it is matched in every spelling, and the
+ * remote owner is a person. Third-party project (the operator is not among
+ * its authors): contributors are matched by full name and email only, the
+ * remote owner (often an organization) is only listed in the inventory, and
+ * only the operator's own identity is searched piece by piece.
+ */
+export function collectIdentities(sourceDir, { mode = 'auto', operator = readOperator() } = {}) {
+  const local = { name: tryGit(sourceDir, ['config', 'user.name'])?.trim(), email: tryGit(sourceDir, ['config', 'user.email'])?.trim() }
+  const op = collector()
+  op.addPerson(operator.name, operator.email)
+  op.addPerson(local.name, local.email)
+  if (operator.osUser) op.addHandle(operator.osUser)
+
+  const probe = projectPeople(sourceDir, {})
+  const authorEmails = probe.emails
+  const authorNames = new Set([...probe.names].map((n) => n.toLowerCase()))
+  const isAuthor = [...op.emails].some((e) => authorEmails.has(e)) || [...op.names].some((n) => authorNames.has(n.toLowerCase()))
+  const resolved = mode === 'auto' ? (isAuthor ? 'own' : 'third-party') : mode
+  const people = resolved === 'own' ? probe : projectPeople(sourceDir, { singleWord: false })
+  const owners = remoteOwners(sourceDir)
+  if (resolved === 'own') owners.forEach((o) => people.addHandle(o))
+
+  const names = [...new Set([...op.names, ...people.names])]
+  const emails = [...new Set([...op.emails, ...people.emails])]
+  const handles = [...new Set([...op.handles, ...people.handles])]
+  const dropped = [...op.dropped, ...people.dropped]
+  const seen = new Set()
+  return {
+    ...emptyIdentity(),
+    mode: resolved,
+    modeReason: mode !== 'auto' ? 'chosen explicitly' : isAuthor ? 'you are one of its commit authors' : 'you are not among its commit authors',
+    names,
+    emails,
+    handles,
+    // A contributor's work email domain (google.com) is not personal; only the operator's own domains are.
+    domains: personalDomains(resolved === 'own' ? emails : [...op.emails]),
+    operator: { names: [...op.names], emails: [...op.emails], handles: [...op.handles] },
+    remoteOwners: resolved === 'own' ? [] : owners,
+    dropped: dropped.filter((d) => !seen.has(`${d.kind}\0${d.value}`) && seen.add(`${d.kind}\0${d.value}`)),
+  }
+}
+
+/** Words in a text, split at punctuation and at camelCase, lowercased and accent-free. */
+export function wordsOf(text) {
+  return foldAccents(text).match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+/g)?.map((w) => w.toLowerCase()) ?? []
+}
+
+/**
+ * Third-party projects can list thousands of contributors. Only those whose
+ * every name token (or handle) occurs somewhere in the files are kept: the
+ * others cannot be matched anyway, and dropping them keeps scans fast.
+ */
+export function keepSeenPeople(identity, words) {
+  if (identity.mode !== 'third-party') return identity
+  const operatorNames = new Set(identity.operator.names)
+  const operatorHandles = new Set(identity.operator.handles)
+  const seenName = (n) => operatorNames.has(n) || wordsOf(n).every((t) => words.has(t))
+  const seenHandle = (h) => operatorHandles.has(h) || words.has(h.toLowerCase().replace(/[-_.]/g, '')) || wordsOf(h).every((t) => words.has(t))
+  const names = identity.names.filter(seenName)
+  const handles = identity.handles.filter(seenHandle)
+  return { ...identity, names, handles, unseen: identity.names.length - names.length + identity.handles.length - handles.length }
 }
 
 /**
@@ -168,6 +239,11 @@ export function collectIdentities(sourceDir) {
  * a domain.
  */
 export function identityTokens(identity) {
+  // In a third-party project only the operator is searched piece by piece:
+  // contributors' first names (Mark) would hit ordinary words (markdown).
+  if (identity.mode === 'third-party' && identity.operator) {
+    return identityTokens({ ...emptyIdentity(), ...identity.operator, domains: identity.domains })
+  }
   const tokens = new Set()
   const addParts = (s) => {
     for (const base of new Set([s.toLowerCase(), foldAccents(s.toLowerCase())])) {

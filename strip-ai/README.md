@@ -34,6 +34,15 @@ Every step that can be checked is checked by a script, not left to the model's d
 - **The report is checked too.** `finalize` refuses a report that still has TODO sections, that does not match the zip's SHA-256, or that leaks a name, an email or a secret.
 - **Reproducible.** The same files always give the same bytes, with fixed timestamps and a stable order. The report records the zip's SHA-256.
 
+## Projects you don't own
+
+`prepare` tells an own project from a third-party one: if you are not among its commit authors, it is third-party. You can force the mode with `--own` or `--third-party`. A third-party export differs in four ways:
+
+- **People**: contributors are matched by full name and email only. Their first names never become search terms, so "Mark" does not hit "markdown". Contributors whose names appear in no file are dropped, which keeps scans fast on projects with thousands of authors. Only your own identity is searched piece by piece.
+- **Organizations are not people**: the remote owner (`facebook` in `github.com/facebook/react`) is listed for review, not redacted. Contributors' work email domains are not treated as personal sites.
+- **License notices are kept verbatim**: `LICENSE`, `NOTICE`, `COPYING` and the copyright lines in file headers keep their names, as MIT, Apache and similar licenses require. The report lists them.
+- **The project's code is untrusted**: nothing is installed or run without your approval, which the report records. Installs use `--ignore-scripts`. Every command runs with credentials stripped from the environment and a throwaway home, cache and temp folder. Git calls ignore `core.fsmonitor`, so a repo received with its `.git` folder cannot run commands through its own config.
+
 ## What it removes and redacts
 
 - **AI tooling**: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursor/`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.github/prompts/`, `.aider*`, `.mcp.json`, `llms.txt` and more.

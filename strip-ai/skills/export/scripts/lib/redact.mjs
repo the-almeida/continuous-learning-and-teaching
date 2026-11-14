@@ -10,8 +10,24 @@ import { stripImageMetadata } from './images.mjs'
 import { createIdentityMatcher, identityRules, matchCase, placeholderCandidates } from './identity.mjs'
 import {
   CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_USERS, HOME_PATH_RE, SECRET_RULES, URL_CREDENTIALS_RE, classifyEmail, fakeCnpj,
-  fakeCpf, isFixtureUrlCredential, isPublishedExample, isRealCnpj, isRealCpf, isUrlCredentialContext, mask,
+  fakeCpf, isCopyrightLine, isFixtureUrlCredential, isLicenseFile, isPublishedExample, isRealCnpj, isRealCpf,
+  isUrlCredentialContext, mask,
 } from './rules.mjs'
+
+/**
+ * Takes copyright lines out of the text while `edit` runs and puts them back
+ * unchanged, so a license notice in a file header survives redaction.
+ */
+export function withNoticesKept(text, edit) {
+  const kept = []
+  const masked = text.replace(/^.*$/gm, (line) => {
+    if (!isCopyrightLine(line)) return line
+    kept.push(line)
+    return `\u0000KEPT${kept.length - 1}\u0000`
+  })
+  if (!kept.length) return edit(text)
+  return edit(masked).replace(/\u0000KEPT(\d+)\u0000/g, (_, i) => kept[Number(i)])
+}
 
 // Categories whose raw originals are also replaced wherever they appear
 // verbatim, even where no pattern matches (a URL password that a test also
@@ -129,7 +145,7 @@ function readBinary(abs) {
  * 4. a second pass replaces verbatim copies of every redacted original.
  * `rawOriginals` holds unmasked values; callers keep it out of reports.
  */
-export function redactTree(workDir, files, identity, { isSymlink = () => false } = {}) {
+export function redactTree(workDir, files, identity, { isSymlink = () => false, keepNotices = false } = {}) {
   const redactor = createRedactor(identity, corpusFacts(workDir, files))
   const changedFiles = new Set()
   const renamed = []
@@ -141,8 +157,14 @@ export function redactTree(workDir, files, identity, { isSymlink = () => false }
   const finalFiles = []
   const existing = new Set(files.map((f) => f.toLowerCase()))
 
+  const keptNotices = []
   for (const rel of files) {
     const abs = native(workDir, rel)
+    if (keepNotices && isLicenseFile(rel)) {
+      keptNotices.push(rel)
+      finalFiles.push(rel)
+      continue
+    }
     const symlink = isSymlink(rel)
     let replacedReasons = null
     const binary = symlink ? null : readBinary(abs)
@@ -165,7 +187,7 @@ export function redactTree(workDir, files, identity, { isSymlink = () => false }
     }
     const text = symlink ? null : readText(abs)
     if (text !== null) {
-      const next = redactor.redactText(text, rel)
+      const next = keepNotices ? withNoticesKept(text, (t) => redactor.redactText(t, rel)) : redactor.redactText(text, rel)
       if (next !== text) {
         fs.writeFileSync(abs, next)
         changedFiles.add(rel)
@@ -202,14 +224,16 @@ export function redactTree(workDir, files, identity, { isSymlink = () => false }
     const re = new RegExp(literals.map((o) => escapeRegExp(o.original)).join('|'), 'gi')
     const byValue = new Map(literals.map((o) => [o.original.toLowerCase(), o]))
     for (const rel of finalFiles) {
-      if (isSymlink(rel)) continue
+      if (isSymlink(rel) || (keepNotices && isLicenseFile(rel))) continue
       const abs = native(workDir, rel)
       const text = readText(abs)
       if (text === null) continue
-      const next = text.replace(re, (m) => {
-        const o = byValue.get(m.toLowerCase())
-        return redactor.recordLiteral(o.category, m, o.placeholder, rel)
-      })
+      const replace = (t) =>
+        t.replace(re, (m) => {
+          const o = byValue.get(m.toLowerCase())
+          return redactor.recordLiteral(o.category, m, o.placeholder, rel)
+        })
+      const next = keepNotices ? withNoticesKept(text, replace) : replace(text)
       if (next !== text) {
         fs.writeFileSync(abs, next)
         changedFiles.add(rel)
@@ -226,6 +250,7 @@ export function redactTree(workDir, files, identity, { isSymlink = () => false }
     replacedDocuments,
     documentsNeedingAction,
     strippedMetadata,
+    keptNotices,
     redactions: redactor.summary(redactor.cleanPath),
     identityHits: hits.map((h) => ({ literal: mask(h.literal), count: h.count })),
     suspiciousIdentities: hits.filter((h) => h.count > SUSPICIOUS_HITS).map((h) => ({ literal: mask(h.literal), count: h.count })),
