@@ -8,6 +8,7 @@
 //   check <WR> setup|baseline|final "<command>" [--approved "<who allowed it>"]
 //                                             run a project command and record its result
 //   check <WR> baseline --none "<reason>"     record that the project has no checks
+//   languages <WR> [--keep "<A,B>"|--keep all] list the project's languages; keep only those the user accepts
 //   strip <WR>                                delete AI tooling files and folders
 //   inventory <WR>                            list candidate identifiers (domains, profiles, authors, emails)
 //   identity <WR> list [--all]|add <kind> <value> [--as <placeholder>]|remove <value>|confirm
@@ -30,10 +31,11 @@ import { addDecision, decisionFor, loadDecisions, unresolved, validateReason } f
 import { changedSinceBaseline, diffFindings } from './lib/diff.mjs'
 import { PLACEHOLDER_FORMATS, placeholderFor } from './lib/documents.mjs'
 import { native, readJson, readText, sha256, writeJson } from './lib/files.mjs'
-import { listIgnoredFiles, listSourceFiles } from './lib/git.mjs'
+import { listIgnoredFiles, listSourceFiles, workGit } from './lib/git.mjs'
 import { scanContext } from './lib/context.mjs'
 import { collectIdentities, identityTokens, keepSeenPeople, personalDomains, wordsOf } from './lib/identity.mjs'
 import { buildInventory } from './lib/inventory.mjs'
+import { languageBreakdown } from './lib/languages.mjs'
 import { findLeaks, findTokens } from './lib/leaks.mjs'
 import { redactTree } from './lib/redact.mjs'
 import { buildReport, TODO } from './lib/report.mjs'
@@ -179,8 +181,54 @@ function envIn(workRoot, flags) {
   print({ copied, note: 'These stay ignored in the work dir, so they are never exported.' })
 }
 
+function languagesCmd(workRoot, flags) {
+  const state = loadState(workRoot)
+  const files = exportFiles(workRoot, state)
+  const breakdown = languageBreakdown(state.workDir, files)
+  const summary = breakdown.map(({ paths, ...l }) => l)
+  if (flags.keep === undefined) {
+    return print({
+      languages: summary,
+      decided: state.languages?.kept ?? null,
+      next: `show this to the user, ask which languages their model accepts, then: languages ${workRoot} --keep "<Language A,Language B>" (or --keep all)`,
+    })
+  }
+  if (state.steps.strip) fail('languages are decided before "strip": run "prepare" again to change them')
+  const known = new Map(breakdown.map((l) => [l.language.toLowerCase(), l]))
+  const wanted = flags.keep.trim().toLowerCase() === 'all' ? [...known.keys()] : flags.keep.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean)
+  const unknown = wanted.filter((w) => !known.has(w))
+  if (unknown.length) fail(`not among the detected languages: ${unknown.join(', ')}. Use the exact names "languages" printed.`)
+  if (!wanted.length) fail('keep at least one language, or stop the export')
+  const kept = breakdown.filter((l) => wanted.includes(l.language.toLowerCase()))
+  const excluded = breakdown.filter((l) => !wanted.includes(l.language.toLowerCase()))
+  for (const l of excluded) for (const rel of l.paths) fs.rmSync(native(state.workDir, rel), { force: true })
+  const removed = new Set(excluded.flatMap((l) => l.paths))
+  state.untracked = state.untracked.filter((r) => !removed.has(r))
+  for (const r of removed) delete state.symlinks[r]
+  if (removed.size) {
+    // The user's choice is the new starting point: later diffs show only what cleaning changed.
+    workGit(workRoot, state.workDir, ['add', '-A'])
+    workGit(workRoot, state.workDir, ['commit', '-q', '-m', 'strip-ai: languages the user excluded'])
+    state.baseline = workGit(workRoot, state.workDir, ['rev-parse', 'HEAD']).trim()
+  }
+  state.languages = {
+    kept: kept.map((l) => ({ language: l.language, type: l.type, files: l.files, lines: l.lines })),
+    excluded: excluded.map((l) => ({ language: l.language, type: l.type, files: l.files, lines: l.lines })),
+  }
+  state.steps.languages = now()
+  saveState(workRoot, state)
+  const noCode = !kept.some((l) => ['programming', 'markup'].includes(l.type))
+  print({
+    kept: kept.map((l) => `${l.language} (${l.files} file(s))`),
+    removed: excluded.map((l) => `${l.language} (${l.files} file(s))`),
+    warning: noCode ? 'no programming or markup language is left: confirm with the user that the export is still wanted' : undefined,
+    next: 'baseline checks',
+  })
+}
+
 function check(workRoot, phase, args, flags) {
   const state = loadState(workRoot)
+  if (!state.steps.languages) fail('decide the languages first: "languages <WR>", ask the user, then "languages <WR> --keep ..."')
   if (phase === 'baseline' && state.steps.strip) fail('baseline checks must run before "strip", on the untouched copy. Run "prepare" again.')
   if (flags.none !== undefined) {
     if (phase !== 'baseline') fail('--none only applies to baseline')
@@ -423,6 +471,7 @@ function status(workRoot) {
   const zipValid = state.zip && fs.existsSync(state.zip.path) && state.zip.treeFingerprint === e.fingerprint
   const steps = [
     ['prepare', true, state.steps.prepare],
+    ['languages decided', Boolean(state.steps.languages), state.languages ? `kept: ${state.languages.kept.map((l) => l.language).join(', ')}` : `languages ${workRoot}`],
     ['baseline checks', table.length > 0 || Boolean(checks.none), checks.none ? `none: ${checks.none.reason}` : `${table.length} command(s)`],
     ['strip', Boolean(state.steps.strip), state.steps.strip ? `${(state.removedAi ?? []).length} path(s) removed` : `strip ${workRoot}`],
     ['inventory reviewed', Boolean(state.steps.inventory), state.steps.inventory ? 'listed' : `inventory ${workRoot}`],
@@ -441,7 +490,7 @@ function status(workRoot) {
 
 function chooseOut(state, rootName, outFlag) {
   if (outFlag) return path.resolve(outFlag)
-  const dir = path.dirname(state.source)
+  const dir = path.dirname(state.repoRoot ?? state.source)
   let out = path.join(dir, `${rootName}-clean.zip`)
   for (let i = 2; fs.existsSync(out); i++) out = path.join(dir, `${rootName}-clean-${i}.zip`)
   return out
@@ -525,6 +574,7 @@ function zip(workRoot, flags) {
       date: now().slice(0, 10),
       mode: state.mode,
       keptNotices: redactions.keptNotices ?? [],
+      languages: state.languages,
       shallow: state.shallow,
       noChecks: checks.none?.reason,
       checks: checkTable(checks),
@@ -621,7 +671,7 @@ function cleanup(workRoot, flags) {
 function parseArgs(argv) {
   const flags = {}
   const positional = []
-  const valued = new Set(['--name', '--out', '--reason', '--rule', '--file', '--as', '--timeout', '--none', '--approved'])
+  const valued = new Set(['--name', '--out', '--reason', '--rule', '--file', '--as', '--timeout', '--none', '--approved', '--keep'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (valued.has(a)) flags[a.slice(2)] = argv[++i] ?? ''
@@ -641,6 +691,7 @@ const commands = {
   prepare: () => prepare(wr, flags),
   'env-in': () => envIn(wr, flags),
   check: () => check(wr, more[0], more.slice(1), flags),
+  languages: () => languagesCmd(wr, flags),
   strip: () => strip(wr),
   inventory: () => inventory(wr),
   identity: () => identityCmd(wr, more[0], more.slice(1), flags),

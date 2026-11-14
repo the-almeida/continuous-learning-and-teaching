@@ -149,6 +149,8 @@ export function prepareWork(sourceArg) {
     name: path.basename(source),
     workDir,
     fromGit,
+    // For a folder inside a repository, the zip goes next to the repository, never inside it.
+    repoRoot: fromGit ? path.resolve(workGit(workRoot, workDir, ['-C', source, 'rev-parse', '--show-toplevel']).trim()) : null,
     shallow: fromGit && isShallow(source),
     baseline: workGit(workRoot, workDir, ['rev-parse', 'HEAD']).trim(),
     executables: executables.sort(),

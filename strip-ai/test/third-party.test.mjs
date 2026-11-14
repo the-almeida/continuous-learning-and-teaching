@@ -89,6 +89,7 @@ test("the project's code needs approval to run, and runs without the operator's 
   const { dir } = publicProject(t)
   const wr = prepare(t, dir)
   assert.equal(cliOk('status', wr).stdout.split('\n')[0].startsWith('mode: third-party'), true)
+  cliOk('languages', wr, '--keep', 'all')
   const printEnv = 'node -e "console.log(\'SECRET=\' + (process.env.STRIP_AI_TEST_SECRET || \'none\'), \'HOME=\' + require(\'os\').homedir())"'
   const refused = cli('check', wr, 'baseline', printEnv)
   assert.notEqual(refused.status, 0)
@@ -126,6 +127,7 @@ test('a repository config cannot run commands through core.fsmonitor', (t) => {
 test('a third-party project goes through the whole workflow without running its code', (t) => {
   const { base, dir } = publicProject(t)
   const wr = prepare(t, dir)
+  cliOk('languages', wr, '--keep', 'all')
   cliOk('check', wr, 'baseline', '--none', 'third-party code, the user chose not to run it')
   cliOk('strip', wr)
   const inv = cliOk('inventory', wr).json()

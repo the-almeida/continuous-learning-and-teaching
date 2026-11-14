@@ -39,6 +39,12 @@ export function buildReport(d) {
   )
   if (d.shallow) out.push('> ⚠️ The source was a shallow clone: authors of older commits were not collected as identities.\n')
 
+  if (d.languages) {
+    out.push('## Languages\n')
+    const rows = [...d.languages.kept.map((l) => [l.language, l.type, l.files, 'kept']), ...d.languages.excluded.map((l) => [l.language, l.type, l.files, 'excluded by the user'])]
+    out.push(table(['Language', 'Type', 'Files', 'Decision'], rows))
+  }
+
   out.push('## Checks\n')
   if (d.noChecks) out.push(`No checks were run: ${d.noChecks}\n`)
   else {

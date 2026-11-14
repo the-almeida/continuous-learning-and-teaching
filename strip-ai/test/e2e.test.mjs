@@ -65,6 +65,10 @@ test('the full workflow refuses every shortcut and produces a clean, verified zi
   const wr = prepare(t, dir)
   const work = path.join(wr, 'project')
 
+  fail(['check', wr, 'baseline', 'sh run.sh'], /decide the languages first/)
+  const langs = cliOk('languages', wr).json().languages.map((l) => l.language)
+  assert.ok(langs.includes('Shell') && langs.includes('JavaScript') && langs.includes('Markdown'), langs.join(', '))
+  cliOk('languages', wr, '--keep', 'all')
   fail(['strip', wr], /baseline checks first/)
   cliOk('check', wr, 'baseline', 'sh run.sh')
   cliOk('check', wr, 'baseline', OWNER_CHECK)
@@ -157,6 +161,7 @@ test('a test silenced during the export blocks the zip', (t) => {
   write(dir, 'tests/a.test.js', 'test("a", () => {\n  expect(1).toBe(1)\n})\n')
   commitAll(dir)
   const wr = prepare(t, dir)
+  cliOk('languages', wr, '--keep', 'all')
   cliOk('check', wr, 'baseline', '--none', 'the project has no runnable test command')
   cliOk('strip', wr)
   cliOk('inventory', wr)

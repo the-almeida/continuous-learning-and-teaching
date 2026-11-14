@@ -8,7 +8,7 @@ A Claude Code plugin that exports a codebase as a clean zip: no AI-assistant tra
 
 Without a path it exports the current project. The output lands next to the project folder:
 
-- `<name>-clean.zip`: the code under a `<name>/` root folder, without `.git`. The `.gitignore` is respected, and files the project tracks are kept even when they match it.
+- `<name>-clean.zip`: the code under a `<name>/` root folder, without `.git`. When the project is a folder inside a repository, the zip goes next to the repository, never inside it. The `.gitignore` is respected, and files the project tracks are kept even when they match it.
 - `<name>-clean.report.md`: what was removed and redacted (values masked), the checks before and after, every decision with its reason, and what was not exported or not verified.
 
 The original project is never modified. Everything happens in a private copy.
@@ -16,6 +16,10 @@ The original project is never modified. Everything happens in a private copy.
 ## Plugin or skill?
 
 A **plugin** is the package you install. It can bundle commands, skills, agents and hooks. A **skill** is one capability inside it: instructions plus the files they use. This plugin (`strip-ai`) ships one skill (`export`), so you run it as `/strip-ai:export`. Installing the plugin is what makes the skill available on every machine.
+
+## Languages are your call
+
+Not every language is valid training data for every model. Right after copying the project, the skill lists the languages it contains, with their type and their count of files and lines. It then asks you which ones the export may contain, and the files in the other languages are removed before anything else runs. The report records what was kept and what was excluded. Checks cannot start until you have answered.
 
 ## Why it can be trusted
 
