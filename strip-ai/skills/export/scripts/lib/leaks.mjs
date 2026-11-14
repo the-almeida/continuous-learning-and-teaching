@@ -1,24 +1,22 @@
-// Last line of defense: look for every known sensitive value (the owner's
-// identity and every original that redaction replaced) in the raw bytes of
-// every exported file, including inside zip packages (docx, xlsx, jar),
-// gzip streams and compressed PDF streams, in UTF-8 and UTF-16. Pattern
-// rules decide what to redact; this check proves nothing known survived,
-// whatever the file type.
+// Byte-level searches that do not depend on the pattern rules: every known
+// sensitive value (identity spellings, redacted originals) and every piece
+// of the identity, looked up in the raw bytes of a file and in every layer
+// that can be unpacked from it (zip packages like docx/xlsx/jar, gzip, PDF
+// streams), in UTF-8 and UTF-16.
 import zlib from 'node:zlib'
-import { identityPatterns } from './identity.mjs'
+import { foldAccents } from './identity.mjs'
 import { mask } from './rules.mjs'
 import { readZip } from './zip.mjs'
 
 const MIN_CANARY_LENGTH = 5
+const SUBSTRING_MIN_LENGTH = 8
 const MAX_DEPTH = 3
 
-/** The values to look for, lowercased and deduplicated. */
-export function canaries(identity, originals = []) {
+/** Values to look for, lowercased and deduplicated. */
+export function canaries(...lists) {
   const values = new Set()
-  for (const p of identityPatterns(identity)) values.add(p.literal.toLowerCase())
-  for (const e of identity.emails) values.add(e.toLowerCase())
-  for (const o of originals) values.add(o.toLowerCase())
-  return [...values].filter((v) => v.length >= MIN_CANARY_LENGTH)
+  for (const list of lists) for (const v of list) if (v && v.length >= MIN_CANARY_LENGTH) values.add(foldAccents(v).toLowerCase())
+  return [...values]
 }
 
 function inflatePdfStreams(buf) {
@@ -37,7 +35,7 @@ function inflatePdfStreams(buf) {
   return out
 }
 
-/** The file plus every layer that can be unpacked from it: zip entries, gzip content, PDF streams. */
+/** The file plus every layer that can be unpacked from it. */
 export function layers(name, buf, depth = 0) {
   const result = [{ name, buf }]
   if (depth >= MAX_DEPTH) return result
@@ -55,41 +53,57 @@ export function layers(name, buf, depth = 0) {
   return result
 }
 
-// Words too common to say anything about who the owner is.
-const COMMON_TOKENS = new Set(['the', 'dev', 'code', 'user', 'admin', 'info', 'contact', 'hello', 'mail', 'team', 'www'])
-
-/**
- * Independent of the redaction patterns: each piece of the identity on its
- * own (first name, surname, handle parts, domain labels, email local parts).
- * Redaction matches whole spellings; this finds the variants it did not
- * know about, like a surname inside a domain.
- */
-export function identityTokens(identity) {
-  const tokens = new Set()
-  const addParts = (s) => {
-    for (const t of s.toLowerCase().split(/[^a-z0-9\u00c0-\u024f]+/)) if (t.length >= 4 && !COMMON_TOKENS.has(t)) tokens.add(t)
-  }
-  identity.names.forEach(addParts)
-  identity.handles.forEach((h) => {
-    addParts(h)
-    const joined = h.toLowerCase().replace(/[-_.]/g, '')
-    if (joined.length >= 4) tokens.add(joined)
-  })
-  identity.emails.forEach((e) => addParts(e.slice(0, e.lastIndexOf('@'))))
-  ;(identity.domains ?? []).forEach((d) => addParts(d.slice(0, d.lastIndexOf('.'))))
-  return [...tokens]
+function views(buf) {
+  return [buf.toString('utf8'), buf.toString('utf16le')].map((v) => foldAccents(v).toLowerCase())
 }
 
-/** Leaks of known values in one file, as masked findings. */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Short values only count as whole words: "maria" inside a base64 integrity
+ * hash is chance, not a leak. Long values count anywhere.
+ */
+function matcherFor(value) {
+  if (value.length >= SUBSTRING_MIN_LENGTH) return (view) => view.includes(value)
+  const re = new RegExp(`(?<![a-z0-9])${escapeRegExp(value)}(?![a-z0-9])`)
+  return (view) => re.test(view)
+}
+
+/** Known values present in a file, as masked findings with the layer they were found in. */
 export function findLeaks(relPath, buf, values) {
   if (!values.length) return []
+  const tests = values.map((v) => [v, matcherFor(v)])
   const found = new Map()
   for (const layer of layers(relPath, buf)) {
-    const views = [layer.buf.toString('utf8').toLowerCase(), layer.buf.toString('utf16le').toLowerCase()]
-    for (const value of values) {
-      if (found.has(value)) continue
-      if (views.some((v) => v.includes(value))) found.set(value, layer.name)
+    const vs = views(layer.buf)
+    for (const [value, test] of tests) {
+      if (!found.has(value) && vs.some(test)) found.set(value, layer.name)
     }
   }
-  return [...found].map(([value, where]) => ({ file: relPath, where, value: mask(value) }))
+  return [...found].map(([value, where]) => ({ value, masked: mask(value), where }))
+}
+
+/** Text with long base64/hex runs (integrity hashes, data URIs, keys) blanked, so tokens are not found by chance inside them. */
+export function stripBlobs(text) {
+  return text.replace(/[A-Za-z0-9+/=_-]{40,}/g, ' ')
+}
+
+/** Identity pieces present in a file (substring, case-insensitive), with how many times. */
+export function findTokens(relPath, buf, tokens) {
+  if (!tokens.length) return []
+  const counts = new Map()
+  for (const layer of layers(relPath, buf)) {
+    for (const view of views(layer.buf).map(stripBlobs)) {
+      for (const t of tokens) {
+        let i = view.indexOf(t)
+        while (i !== -1) {
+          counts.set(t, (counts.get(t) ?? 0) + 1)
+          i = view.indexOf(t, i + t.length)
+        }
+      }
+    }
+  }
+  return [...counts].map(([token, count]) => ({ token, count }))
 }

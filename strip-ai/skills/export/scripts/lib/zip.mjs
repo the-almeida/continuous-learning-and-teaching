@@ -20,16 +20,27 @@ export function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0
 }
 
-function dosDateTime(date) {
-  const year = Math.max(date.getFullYear(), 1980)
-  return {
-    time: (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1),
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
-  }
+// Every entry gets the same timestamp (2000-01-01 00:00), so the same files
+// always give the same bytes and the same SHA-256, and the zip says nothing
+// about when or in which time zone it was made.
+const FIXED_TIME = 0
+const FIXED_DATE = ((2000 - 1980) << 9) | (1 << 5) | 1
+
+/** Rejects names that extract outside the target folder or break on Windows. */
+export function validateEntryName(name) {
+  const bad =
+    !name ||
+    name.startsWith('/') ||
+    name.includes('\\') ||
+    name.includes('\0') ||
+    /^[A-Za-z]:/.test(name) ||
+    name.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')
+  if (bad) throw new Error(`unsafe zip entry name: ${JSON.stringify(name)}`)
 }
 
 /**
- * entries: [{ name: 'root/dir/file.txt', data: Buffer, mode: 0o644, mtime: Date }]
+ * entries: [{ name: 'root/dir/file.txt', data: Buffer, mode: 0o644, symlink?: true }]
+ * A symlink entry's data is the link target.
  */
 export function writeZip(outFile, entries) {
   fs.writeFileSync(outFile, buildZip(entries))
@@ -41,13 +52,15 @@ export function buildZip(entries) {
   const central = []
   let offset = 0
   for (const entry of entries) {
+    validateEntryName(entry.name)
     const name = Buffer.from(entry.name, 'utf8')
     const crc = crc32(entry.data)
     const deflated = zlib.deflateRawSync(entry.data, { level: 9 })
     const useDeflate = deflated.length < entry.data.length
     const body = useDeflate ? deflated : entry.data
     if (body.length >= 0xffffffff || offset >= 0xffffffff) throw new Error('Archive too large for a non-ZIP64 archive')
-    const { time, date } = dosDateTime(entry.mtime ?? new Date())
+    const time = FIXED_TIME
+    const date = FIXED_DATE
     const method = useDeflate ? 8 : 0
 
     const local = Buffer.alloc(30)
@@ -76,7 +89,8 @@ export function buildZip(entries) {
     cdh.writeUInt32LE(body.length, 20)
     cdh.writeUInt32LE(entry.data.length, 24)
     cdh.writeUInt16LE(name.length, 28)
-    cdh.writeUInt32LE(((0o100000 | (entry.mode ?? 0o644)) << 16) >>> 0, 38)
+    const type = entry.symlink ? 0o120000 : 0o100000
+    cdh.writeUInt32LE(((type | (entry.symlink ? 0o777 : (entry.mode ?? 0o644))) << 16) >>> 0, 38)
     cdh.writeUInt32LE(offset, 42)
     central.push(cdh, name)
 
@@ -107,7 +121,9 @@ export function readZip(fileOrBuffer) {
     const nameLen = buf.readUInt16LE(ptr + 28)
     const extraLen = buf.readUInt16LE(ptr + 30)
     const commentLen = buf.readUInt16LE(ptr + 32)
-    const mode = (buf.readUInt32LE(ptr + 38) >>> 16) & 0o777
+    const attrs = buf.readUInt32LE(ptr + 38) >>> 16
+    const mode = attrs & 0o777
+    const symlink = (attrs & 0o170000) === 0o120000
     const localOffset = buf.readUInt32LE(ptr + 42)
     const name = buf.subarray(ptr + 46, ptr + 46 + nameLen).toString('utf8')
     const localNameLen = buf.readUInt16LE(localOffset + 26)
@@ -116,7 +132,7 @@ export function readZip(fileOrBuffer) {
     const raw = buf.subarray(start, start + size)
     const data = method === 8 ? zlib.inflateRawSync(raw) : raw
     if (crc32(data) !== crc) throw new Error(`CRC mismatch for ${name}`)
-    entries.push({ name, mode, data })
+    entries.push({ name, mode, symlink, data })
     ptr += 46 + nameLen + extraLen + commentLen
   }
   return entries

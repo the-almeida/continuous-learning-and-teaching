@@ -4,16 +4,11 @@
 // its role (code that loads it still gets a valid .docx) without the data.
 import zlib from 'node:zlib'
 import {
-  CNPJ_RE, CPF_RE, DOCUMENT_EXTENSIONS, EMAIL_RE, PHONE_RES, classifyEmail, isRealCnpj, isRealCpf,
+  CARD_RE, CNPJ_RE, CPF_RE, DOCUMENT_EXTENSIONS, EMAIL_RE, PHONE_RES, classifyEmail, isRealCard, isRealCnpj, isRealCpf,
 } from './rules.mjs'
-import { identityPatterns } from './identity.mjs'
 import { buildZip, readZip } from './zip.mjs'
 
-export const PLACEHOLDER_TEXT = [
-  'Placeholder document',
-  'The original file was replaced because it contained personal data.',
-  'Jane Doe · user@example.com',
-]
+export const PLACEHOLDER_TEXT = ['Placeholder document', 'The original file was replaced because it contained personal data.']
 
 export function extensionOf(relPath) {
   const base = relPath.slice(relPath.lastIndexOf('/') + 1)
@@ -77,15 +72,17 @@ export function documentText(relPath, buf) {
   return null
 }
 
-/** Reasons a document counts as personal: the owner's identity in its name or text, or real contact or ID data in its text. */
-export function personalDataReasons(relPath, text, identity) {
+/**
+ * Reasons a document counts as personal: a known identity in its name or
+ * text, or real contact, ID or card data in its text. `matcher` comes from
+ * createIdentityMatcher.
+ */
+export function personalDataReasons(relPath, text, matcher) {
   const reasons = new Set()
-  for (const { re } of identityPatterns(identity)) {
-    if (re.test(relPath)) reasons.add('owner identity in file name')
-    re.lastIndex = 0
-    if (text && re.test(text)) reasons.add('owner identity in content')
-  }
+  if (matcher.test(relPath)) reasons.add('owner identity in file name')
+  if (text && matcher.test(text)) reasons.add('owner identity in content')
   if (text) {
+    if ([...text.matchAll(CARD_RE)].some((m) => isRealCard(m[0]))) reasons.add('card number in content')
     if ([...text.matchAll(EMAIL_RE)].some((m) => classifyEmail(m[0]) === 'real')) reasons.add('real email in content')
     if ([...text.matchAll(CPF_RE)].some((m) => isRealCpf(m[0]))) reasons.add('CPF in content')
     if ([...text.matchAll(CNPJ_RE)].some((m) => isRealCnpj(m[0]))) reasons.add('CNPJ in content')

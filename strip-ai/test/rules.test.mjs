@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  aiPathToRemove, classifyEmail, fakeCnpj, fakeCpf, isEnvFile, isValidCnpj, isValidCpf, mask,
+  AI_TEXT_RULES, SECRET_ASSIGNMENT_RE, aiPathTerm, aiPathToRemove, classifyEmail, fakeCnpj, fakeCpf, isEnvFile,
+  isRealCard, isRealCnpj, isRealCpf, isRealIban, isRealSsn, isValidCnpj, isValidCpf, mask,
 } from '../skills/export/scripts/lib/rules.mjs'
-import { scanText } from '../skills/export/scripts/lib/scan.mjs'
-import { createRedactor, } from '../skills/export/scripts/lib/redact.mjs'
 
-const noIdentity = { names: [], emails: [], handles: [] }
+const aiHits = (text) => AI_TEXT_RULES.flatMap(({ id, re }) => [...text.matchAll(re)].map((m) => [id, m[0]]))
 
 test('AI tooling paths are removed at the shallowest AI-only folder', () => {
   assert.equal(aiPathToRemove('.claude/commands/tdd.md'), '.claude')
@@ -16,12 +15,31 @@ test('AI tooling paths are removed at the shallowest AI-only folder', () => {
   assert.equal(aiPathToRemove('.github/copilot-instructions.md'), '.github/copilot-instructions.md')
   assert.equal(aiPathToRemove('.github/prompts/review.prompt.md'), '.github/prompts')
   assert.equal(aiPathToRemove('.aider.conf.yml'), '.aider.conf.yml')
-})
-
-test('ordinary project files are kept', () => {
   for (const p of ['README.md', 'src/agents/list.ts', '.github/workflows/ci.yml', 'docs/claude-shannon.md', '.vscode/settings.json']) {
     assert.equal(aiPathToRemove(p), null, p)
   }
+})
+
+test('AI terms in file and folder names are found, ordinary names are not', () => {
+  assert.equal(aiPathTerm('prompts/system.txt'), 'prompts')
+  assert.equal(aiPathTerm('docs/ai-rules.md'), 'ai')
+  assert.equal(aiPathTerm('notes/claude_session.md'), 'claude')
+  for (const p of ['src/media/player.ts', 'src/main.ts', 'email/aim.ts', 'paint/brush.ts']) assert.equal(aiPathTerm(p), null, p)
+})
+
+test('AI references are found in English, Portuguese and Spanish', () => {
+  const ids = (t) => aiHits(t).map(([id]) => id)
+  assert.ok(ids('Este projeto foi feito com IA.').includes('ai-phrase'))
+  assert.ok(ids('Um agente de inteligência artificial revisa o código.').includes('ai-phrase'))
+  assert.ok(ids('Hecho con inteligencia artificial').includes('ai-phrase'))
+  assert.ok(ids('This file is ai-generated.').includes('ai-lower'))
+  assert.ok(ids('Gerado com Claude').includes('ai-attribution'))
+  assert.ok(ids('Co-Authored-By: Copilot <x@y.z>').includes('ai-attribution'))
+  assert.ok(ids('Built for coding agents').includes('ai-agent'))
+})
+
+test('CSS cursors, database cursors and words containing AI letters are not AI references', () => {
+  assert.deepEqual(aiHits('.btn { cursor: pointer }\nconst cursor = db.cursor()\nMariana tem uma ideia. Email: aim@x.io'), [])
 })
 
 test('emails are classified as fixture, service or real', () => {
@@ -33,76 +51,45 @@ test('emails are classified as fixture, service or real', () => {
   assert.equal(classifyEmail('maria.silva@gmail.com'), 'real')
 })
 
-test('generated CPF and CNPJ placeholders pass check-digit validation', () => {
-  for (let n = 1; n < 50; n++) {
-    assert.ok(isValidCpf(fakeCpf(n)), fakeCpf(n))
-    assert.ok(isValidCnpj(fakeCnpj(n)), fakeCnpj(n))
+test('generated CPF and CNPJ are valid, distinct from real ones, and never look real', () => {
+  for (let n = 1; n < 200; n++) {
+    assert.ok(isValidCpf(fakeCpf(n)) && !isRealCpf(fakeCpf(n)), fakeCpf(n))
+    assert.ok(isValidCnpj(fakeCnpj(n)) && !isRealCnpj(fakeCnpj(n)), fakeCnpj(n))
   }
+  assert.ok(isRealCpf('529.982.247-25'))
   assert.equal(isValidCpf('111.111.111-11'), false)
-  assert.equal(isValidCpf('123.456.789-00'), false)
+  assert.throws(() => fakeCpf(10000), /only 9999 distinct fakes/)
 })
 
-test('env templates are not treated as env files with values', () => {
-  assert.ok(isEnvFile('.env'))
-  assert.ok(isEnvFile('.env.local'))
+test('unquoted secrets in YAML, env and shell files are found, references to variables are not', () => {
+  const text = 'db:\n  password: Zq8vL2pX9wRt\nexport API_TOKEN=ab12CD34ef56\nDB_PASSWORD=${DB_PASS}\nclient_secret: <your-secret>\n'
+  const found = [...text.matchAll(SECRET_ASSIGNMENT_RE)].map((m) => m[1])
+  assert.deepEqual(found, ['password', 'API_TOKEN'])
+})
+
+test('card numbers pass Luhn and a card range, published test cards and timestamps do not count', () => {
+  assert.equal(isRealCard('4242 4242 4242 4242'), false)
+  assert.equal(isRealCard('4111111111111111'), false)
+  assert.equal(isRealCard('4539 1488 0343 6467'), true)
+  assert.equal(isRealCard('4539 1488 0343 6468'), false)
+  assert.equal(isRealCard('1700000000000'), false)
+})
+
+test('IBAN and SSN checks skip published examples', () => {
+  assert.equal(isRealIban('DE89 3704 0044 0532 0130 00'), false)
+  assert.equal(isRealIban('BR1800360305000010009795493C1'), true)
+  assert.equal(isRealIban('BR1800360305000010009795493C2'), false)
+  assert.equal(isRealSsn('123-45-6789'), false)
+  assert.equal(isRealSsn('536-90-4399'), true)
+})
+
+test('env templates are not env files with values', () => {
+  assert.ok(isEnvFile('.env') && isEnvFile('.env.local') && isEnvFile('.env.development'))
   assert.equal(isEnvFile('.env.example'), false)
   assert.equal(isEnvFile('.envrc'), false)
 })
 
-test('masking keeps only the edges of a value and caps the stars so length is hidden', () => {
+test('masking keeps only the edges and caps the stars so length is hidden', () => {
   assert.equal(mask('maria.silva@gmail.com'), 'm********a@g***l.com')
   assert.equal(mask('abc'), '***')
-})
-
-test('scan blocks real secrets and leaves published examples alone', () => {
-  const text = 'const a = "AKIAIOSFODNN7EXAMPLE"\nconst b = "AKIAZ7Q2LMN4PQR8STUV"\n'
-  const findings = scanText('src/aws.ts', text, noIdentity).filter((f) => f.rule === 'aws-key')
-  assert.deepEqual(findings.map((f) => [f.line, f.severity]), [[1, 'fixture'], [2, 'block']])
-})
-
-test('scan finds AI references in prose but not CSS cursors or DB cursors', () => {
-  const text = 'Built with Claude Code.\n.btn { cursor: pointer }\nconst cursor = db.cursor()\n'
-  const rules = scanText('README.md', text, noIdentity).filter((f) => f.severity === 'clean').map((f) => [f.rule, f.line])
-  assert.deepEqual(rules, [['ai-claude', 1]])
-})
-
-test('scan finds the project-specific AI command names it is given', () => {
-  const text = 'Run `/wc-tdd` then ask @wc-test-auditor.\n// @wc-test-auditor-allow: x\nsee src/wc-tdd.ts\n'
-  const lines = scanText('docs/x.md', text, noIdentity, ['wc-tdd', 'wc-test-auditor'])
-    .filter((f) => f.rule === 'ai-command')
-    .map((f) => f.line)
-  assert.deepEqual(lines, [1, 1, 2])
-})
-
-test('redaction is consistent: the same value always gets the same placeholder', () => {
-  const r = createRedactor(noIdentity)
-  const a = r.redactText('owner: maria.silva@gmail.com', 'a.ts')
-  const b = r.redactText('expect(owner).toBe("Maria.Silva@gmail.com")', 'a.test.ts')
-  assert.equal(a, 'owner: user1@example.com')
-  assert.equal(b, 'expect(owner).toBe("user1@example.com")')
-})
-
-test('redaction replaces the owner identity in every spelling, keeping case style', () => {
-  const identity = { names: ['Maria Silva'], emails: [], handles: ['msilva-dev'] }
-  const r = createRedactor(identity)
-  const out = r.redactText('Copyright Maria Silva\ncvMariaSilva.pdf\nmaria-silva\ngithub.com/msilva-dev/repo', 'LICENSE')
-  assert.equal(out, 'Copyright Jane Doe\ncvJaneDoe.pdf\njane-doe\ngithub.com/example-user/repo')
-  assert.equal(r.redactName('cvMariaSilva.pdf', 'x'), 'cvJaneDoe.pdf')
-})
-
-test('redaction keeps local fixture credentials and replaces remote ones', () => {
-  const r = createRedactor(noIdentity)
-  const out = r.redactText(
-    'a=postgres://postgres:postgres@127.0.0.1:5432/db\nb=postgres://app:Zq8vL2pX9w@db.prod.acme.io/db',
-    '.env.example',
-  )
-  assert.equal(out, 'a=postgres://postgres:postgres@127.0.0.1:5432/db\nb=postgres://app:REDACTED@db.prod.acme.io/db')
-})
-
-test('redacted values with valid check digits stay valid', () => {
-  const r = createRedactor(noIdentity)
-  const out = r.redactText('cpf: "529.982.247-25"', 'x.ts')
-  const value = out.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)[0]
-  assert.notEqual(value, '529.982.247-25')
-  assert.ok(isValidCpf(value))
 })

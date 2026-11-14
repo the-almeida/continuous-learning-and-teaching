@@ -72,11 +72,29 @@ export const AI_TEXT_RULES = [
     re: new RegExp(`${B}(aider|windsurf|codeium|tabnine|cline|roo-?code|kiro|opencode|codex|lovable|bolt\\.new|v0\\.dev)${E}`, 'gi'),
   },
   { id: 'ai-mcp', re: new RegExp(`${B}MCP${E}|[Mm]odel [Cc]ontext [Pp]rotocol`, 'g') },
+  // Portuguese and Spanish: "feito com IA", "agente de IA", "inteligência artificial".
+  { id: 'ai-acronym-pt', re: new RegExp(`${B}IA${E}`, 'g') },
+  {
+    id: 'ai-phrase',
+    re: /intelig[eê]ncia artificial|artificial intelligence|large language models?|language models?|prompt engineering|system prompts?|vibe[- ]?cod(?:e|ed|ing)|(?:agente|assistente|modelo)s? de (?:IA|linguagem)|(?:gerad|criad|feit|escrit)[oa]s? (?:por|com) (?:IA|intelig)/gi,
+  },
+  {
+    id: 'ai-lower',
+    re: new RegExp(`${B}ai[- ](?:generated|assisted|powered|driven|agents?|assistants?|pair|coding|tools?|models?|review(?:er|s)?)${E}`, 'gi'),
+  },
   {
     id: 'ai-attribution',
-    re: /(co-authored-by|generated (with|by)|written (with|by)|assisted by)[^\n]{0,60}?(claude|copilot|gpt|cursor|gemini|\bai\b|llm|codex)/gi,
+    re: /(co-authored-by|generated (with|by)|written (with|by)|assisted by|gerad[oa] (com|por)|escrit[oa] (com|por)|criad[oa] (com|por))[^\n]{0,60}?(claude|copilot|gpt|cursor|gemini|\bai\b|\bia\b|llm|codex)/gi,
   },
 ]
+
+// AI terms in a file or folder name (prompts/, ai-rules.md, claude-notes.txt).
+const AI_PATH_RE = /(?:^|[/._ -])(claude|anthropic|openai|copilot|chatgpt|gpt|gemini|llms?|prompts?|agents?|ai|ia|mcp|cursor|windsurf|aider|codex|agentic)(?=$|[/._ -])/i
+
+/** The AI term a path contains, or null. */
+export function aiPathTerm(relPath) {
+  return AI_PATH_RE.exec(relPath)?.[1] ?? null
+}
 
 const FILE_EXTENSION_TLDS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'ico', 'css', 'js', 'ts',
@@ -241,7 +259,8 @@ export const HOME_PATH_RE = /(\/home\/|\/Users\/|[A-Za-z]:(?:\\\\|\\|\/)Users(?:
 export const GENERIC_USERS = new Set([
   'user', 'runner', 'root', 'node', 'ubuntu', 'vscode', 'codespace', 'admin',
   'administrator', 'public', 'default', 'shared', 'username', 'you', 'me',
-  'name', 'ec2-user', 'pi', 'app', 'circleci', 'travis', 'jenkins', 'docker',
+  'name', 'ec2-user', 'pi', 'app', 'circleci', 'travis', 'jenkins', 'docker', 'runneradmin',
+  'vagrant', 'gitpod', 'coder', 'dev', 'developer', 'guest', 'test', 'build', 'builder', 'ci',
 ])
 
 export const PHONE_RES = [
@@ -264,6 +283,10 @@ export function isPublicIp(parts) {
   return true
 }
 
+// KEY: value and KEY=value lines without quotes (YAML, .env, shell, ini, properties).
+export const SECRET_ASSIGNMENT_RE =
+  /^[ \t]*(?:export[ \t]+)?["']?([A-Za-z0-9_.-]*(?:passw(?:or)?d|pwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth[_-]?key)[A-Za-z0-9_.-]*)["']?[ \t]*[:=][ \t]*([^\s"'#,;(){}$%<\[][^\s"'#,;(){}<>]{7,})[ \t]*,?[ \t]*(?:#.*)?$/gim
+
 export const GENERIC_SECRET_RE =
   /(api[_-]?key|secret|token|passw(?:or)?d|pwd|client[_-]?secret|access[_-]?key|private[_-]?key)["']?\s*[:=]\s*["']([^"'\s]{8,})["']/gi
 const PLACEHOLDER_VALUE = /^(env\(|\$\{|\$[A-Z_]|process\.env|<|your|example|dummy|test|fake|placeholder|changeme|redacted|x{4,}|\*{4,})/i
@@ -278,6 +301,58 @@ export function looksLikeRealSecret(value) {
     entropy -= p * Math.log2(p)
   }
   return entropy >= 3.5
+}
+
+function luhn(digitsStr) {
+  let sum = 0
+  for (let i = 0; i < digitsStr.length; i++) {
+    let d = Number(digitsStr[digitsStr.length - 1 - i])
+    if (i % 2 === 1) {
+      d *= 2
+      if (d > 9) d -= 9
+    }
+    sum += d
+  }
+  return sum % 10 === 0
+}
+
+// Card numbers published as test values by payment providers.
+const TEST_CARDS = new Set([
+  '4242424242424242', '4000056655665556', '5555555555554444', '2223003122003222', '5200828282828210',
+  '5105105105105100', '378282246310005', '371449635398431', '6011111111111117', '6011000990139424',
+  '3056930009020004', '36227206271667', '3566002020360505', '6200000000000005', '4111111111111111',
+  '4012888888881881', '4222222222222', '5431111111111111', '4000000000000002', '4000000000009995',
+  '4000000000000077', '4000002500003155', '4000000000003220', '6011000000000004', '30569309025904',
+  '38520000023237', '3530111333300000', '4917610000000000', '4462030000000000', '5454545454545454',
+])
+export const CARD_RE = /(?<![\d.-])(?:\d[ -]?){12,18}\d(?![\d.-])/g
+
+/** A Luhn-valid number in a card range that is not a published test card. */
+export function isRealCard(match) {
+  const d = match.replace(/\D/g, '')
+  return d.length >= 13 && d.length <= 19 && /^[3-6]/.test(d) && !TEST_CARDS.has(d) && !/^(\d)\1+$/.test(d) && luhn(d)
+}
+
+const EXAMPLE_IBANS = new Set(['DE89370400440532013000', 'GB82WEST12345698765432', 'GB29NWBK60161331926819', 'FR1420041010050500013M02606', 'NL91ABNA0417164300'])
+export const IBAN_RE = /(?<![A-Za-z0-9])[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?(?![A-Za-z0-9])/g
+
+export function isRealIban(match) {
+  const s = match.replace(/ /g, '')
+  if (s.length < 15 || s.length > 34 || EXAMPLE_IBANS.has(s)) return false
+  const rearranged = s.slice(4) + s.slice(0, 4)
+  let rest = 0
+  for (const ch of rearranged) {
+    const v = /\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55)
+    for (const digit of v) rest = (rest * 10 + Number(digit)) % 97
+  }
+  return rest === 1
+}
+
+const EXAMPLE_SSNS = new Set(['123-45-6789', '078-05-1120', '219-09-9999'])
+export const SSN_RE = /(?<![\d-])(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}(?![\d-])/g
+
+export function isRealSsn(match) {
+  return !EXAMPLE_SSNS.has(match)
 }
 
 export const DOCUMENT_EXTENSIONS = new Set([

@@ -1,29 +1,29 @@
-// Finds AI references, PII and secrets in the export. Findings carry masked
-// values only, so reports built from them never leak what they describe.
+// Finds AI references, PII and secrets. Every finding has a stable id (rule,
+// file and the matched value or line), so a decision about it survives line
+// shifts. Values are masked, so anything built from findings never leaks
+// what it describes.
+//
+// severity: 'block' (must be fixed, or allowed with a reason), 'review'
+// (needs a decision), 'clean' (AI reference to clean or keep with a reason),
+// 'fixture' (kept, informational only).
 import fs from 'node:fs'
 import path from 'node:path'
-import {
-  AI_TEXT_RULES, CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_SECRET_RE,
-  GENERIC_USERS, HOME_PATH_RE, IPV4_RE, LOCKFILES, PHONE_RES, SECRET_RULES, URL_CREDENTIALS_RE,
-  classifyEmail, isEnvFile, isUrlCredentialContext, isFixtureUrlCredential, isPublicIp, isPublishedExample, isRealCnpj,
-  isRealCpf, looksLikeRealSecret, mask,
-} from './rules.mjs'
-import { identityPatterns } from './identity.mjs'
+import { MAX_SCAN_BYTES, isBinary, native, sha256 } from './files.mjs'
 import { documentText, isDocument, isPlaceholder, personalDataReasons } from './documents.mjs'
 import { stripImageMetadata } from './images.mjs'
-import { canaries, findLeaks } from './leaks.mjs'
+import { findLeaks, findTokens } from './leaks.mjs'
+import {
+  AI_TEXT_RULES, CARD_RE, CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_SECRET_RE, GENERIC_USERS, HOME_PATH_RE, IBAN_RE,
+  IPV4_RE, LOCKFILES, PHONE_RES, SECRET_ASSIGNMENT_RE, SECRET_RULES, SSN_RE, URL_CREDENTIALS_RE, aiPathTerm,
+  aiPathToRemove, classifyEmail, isEnvFile, isFixtureUrlCredential, isPublicIp, isPublishedExample, isRealCard,
+  isRealCnpj, isRealCpf, isRealIban, isRealSsn, isUrlCredentialContext, looksLikeRealSecret, mask,
+} from './rules.mjs'
 
-export const MAX_SCAN_BYTES = 50 * 1024 * 1024
+// Image formats that can carry EXIF/XMP but that the script does not rewrite.
+const UNSTRIPPED_IMAGES = /\.(webp|heic|heif|avif|tiff?|gif|jxl)$/i
 
-function isBinary(buf) {
-  return buf.subarray(0, 8192).includes(0)
-}
-
-/** Text content, or null for binary files and files too large to scan. */
-export function readText(absPath) {
-  if (fs.statSync(absPath).size > MAX_SCAN_BYTES) return null
-  const buf = fs.readFileSync(absPath)
-  return isBinary(buf) ? null : buf.toString('utf8')
+export function findingId(rule, file, key) {
+  return 'f' + sha256(`${rule}\0${file}\0${String(key).toLowerCase()}`).slice(0, 10)
 }
 
 function lineIndex(text) {
@@ -41,10 +41,12 @@ function lineIndex(text) {
   }
 }
 
-/**
- * severity: 'block' (must be gone before zipping), 'clean' (AI reference to
- * clean by judgment), 'review' (needs a human-style look), 'fixture' (kept).
- */
+function lineAt(text, index) {
+  const start = text.lastIndexOf('\n', index) + 1
+  const end = text.indexOf('\n', index)
+  return text.slice(start, end === -1 ? undefined : end)
+}
+
 /** Rules for the project's own AI command, skill and agent names (/wc-tdd, @reviewer). */
 export function aiNameRules(aiNames = []) {
   return aiNames.map((name) => ({
@@ -53,24 +55,30 @@ export function aiNameRules(aiNames = []) {
   }))
 }
 
-function excerpt(text, index) {
-  const start = text.lastIndexOf('\n', index) + 1
-  const end = text.indexOf('\n', index)
-  return text.slice(start, end === -1 ? undefined : end).trim().slice(0, 160)
+/** Masks emails and identity spellings inside an excerpt shown for an AI reference. */
+function maskExcerpt(line, ctx) {
+  let out = line.replace(EMAIL_RE, (m) => mask(m))
+  out = ctx.matcher.replace(out, (m) => mask(m))
+  return out.trim().slice(0, 160)
 }
 
-export function scanText(relPath, text, identity, aiNames = []) {
+/**
+ * ctx: { matcher, aiNames, originals (lowercased raw values already
+ * redacted), tokens (identity pieces) }
+ */
+export function scanText(relPath, text, ctx) {
   const findings = []
   const at = lineIndex(text)
   const base = path.posix.basename(relPath).toLowerCase()
-  const add = (rule, severity, index, value) =>
-    findings.push({ file: relPath, line: at(index), rule, severity, value: mask(value) })
+  const lockfile = LOCKFILES.has(base)
+  const add = (rule, severity, index, raw, shown = mask(raw)) =>
+    findings.push({ id: findingId(rule, relPath, raw), rule, severity, file: relPath, line: at(index), value: shown })
 
-  if (!LOCKFILES.has(base)) {
-    for (const { id, re } of [...AI_TEXT_RULES, ...aiNameRules(aiNames)]) {
-      // AI references are not sensitive: show the line so it can be cleaned.
+  if (!lockfile) {
+    for (const { id, re } of [...AI_TEXT_RULES, ...aiNameRules(ctx.aiNames)]) {
       for (const m of text.matchAll(re)) {
-        findings.push({ file: relPath, line: at(m.index), rule: id, severity: 'clean', value: excerpt(text, m.index) })
+        const line = lineAt(text, m.index)
+        findings.push({ id: findingId(id, relPath, line.trim()), rule: id, severity: 'clean', file: relPath, line: at(m.index), value: maskExcerpt(line, ctx) })
       }
     }
   }
@@ -81,8 +89,9 @@ export function scanText(relPath, text, identity, aiNames = []) {
   for (const m of text.matchAll(URL_CREDENTIALS_RE)) {
     add('url-credentials', isFixtureUrlCredential(m[3], m[4]) ? 'fixture' : 'block', m.index, m[3])
   }
+  for (const m of ctx.matcher.find(text)) add('identity', 'block', m.index, m.text)
 
-  if (!LOCKFILES.has(base)) {
+  if (!lockfile) {
     for (const m of text.matchAll(EMAIL_RE)) {
       if (isUrlCredentialContext(text, m.index)) continue
       const kind = classifyEmail(m[0])
@@ -94,84 +103,110 @@ export function scanText(relPath, text, identity, aiNames = []) {
     for (const m of text.matchAll(HOME_PATH_RE)) {
       if (!GENERIC_USERS.has(m[2].toLowerCase())) add('home-path', 'block', m.index, m[0])
     }
-    for (const { re } of identityPatterns(identity)) {
-      for (const m of text.matchAll(re)) add('identity', 'block', m.index, m[0])
-    }
     for (const re of PHONE_RES) for (const m of text.matchAll(re)) add('phone', 'review', m.index, m[0])
-    for (const m of base.endsWith('.svg') ? [] : text.matchAll(IPV4_RE)) {
-      if (isPublicIp(m.slice(1, 5))) add('public-ip', 'review', m.index, m[0])
+    if (!base.endsWith('.svg')) {
+      for (const m of text.matchAll(IPV4_RE)) if (isPublicIp(m.slice(1, 5))) add('public-ip', 'review', m.index, m[0])
     }
-    for (const m of text.matchAll(GENERIC_SECRET_RE)) {
-      if (looksLikeRealSecret(m[2])) add('generic-secret', 'review', m.index, m[2])
-    }
+    for (const m of text.matchAll(GENERIC_SECRET_RE)) if (looksLikeRealSecret(m[2])) add('generic-secret', 'review', m.index, m[2])
+    for (const m of text.matchAll(SECRET_ASSIGNMENT_RE)) if (looksLikeRealSecret(m[2])) add('generic-secret', 'review', m.index, m[2])
+    for (const m of text.matchAll(CARD_RE)) if (isRealCard(m[0])) add('card-number', 'review', m.index, m[0])
+    for (const m of text.matchAll(IBAN_RE)) if (isRealIban(m[0])) add('iban', 'review', m.index, m[0])
+    for (const m of text.matchAll(SSN_RE)) if (isRealSsn(m[0])) add('ssn', 'review', m.index, m[0])
   }
-  if (isEnvFile(base) && /^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S+/m.test(text)) {
-    add('env-file-with-values', 'review', 0, base)
+  if (isEnvFile(base)) {
+    // Any env file that would ship needs a look: templates are named .env.example.
+    const assignment = /^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S+/m.exec(text)
+    if (assignment) add('env-file', 'block', assignment.index, `env file with values: ${base}`, base)
   }
   return findings
 }
 
-/** Documents with personal data block the zip until replaced; the others get a human-style look. */
-export function scanDocument(relPath, buf, identity) {
+export function scanPath(relPath, ctx) {
+  const findings = []
+  const add = (rule, severity, raw, shown) => findings.push({ id: findingId(rule, relPath, raw), rule, severity, file: relPath, line: 0, value: shown })
+  if (aiPathToRemove(relPath)) add('ai-tooling-file', 'block', relPath, relPath)
+  else {
+    const term = aiPathTerm(relPath)
+    if (term) add('ai-path', 'clean', term, `"${term}" in path`)
+  }
+  if (ctx.matcher.test(relPath)) add('identity-in-path', 'block', relPath, mask(relPath))
+  return findings
+}
+
+/** Documents with personal data block the zip until replaced; the others need a look. */
+export function scanDocument(relPath, buf, ctx) {
   if (isPlaceholder(relPath, buf)) return []
   const text = documentText(relPath, buf)
-  const reasons = personalDataReasons(relPath, text, identity)
-  if (reasons.length) return [{ file: relPath, line: 0, rule: 'document-with-pii', severity: 'block', value: reasons.join(', ') }]
-  const note = text === null ? 'content not readable by the script' : 'no personal data detected by the script'
-  return [{ file: relPath, line: 0, rule: 'document', severity: 'review', value: note }]
+  const reasons = personalDataReasons(relPath, text, ctx.matcher)
+  const finding = (rule, severity, value) => ({ id: findingId(rule, relPath, rule), rule, severity, file: relPath, line: 0, value })
+  if (reasons.length) return [finding('document-with-pii', 'block', reasons.join(', '))]
+  return [finding('document', 'review', text === null ? 'content not readable by the script' : 'no personal data detected by the script')]
 }
 
-export function scanPath(relPath, identity) {
-  const findings = []
-  for (const { re } of identityPatterns(identity)) {
-    if (re.test(relPath)) findings.push({ file: relPath, line: 0, rule: 'identity-in-path', severity: 'block', value: mask(relPath) })
-  }
-  return findings
+function tokenFindings(relPath, buf, ctx, rule = 'identity-token') {
+  return findTokens(relPath, buf, ctx.tokens).map(({ token, count }) => ({
+    id: findingId(rule, relPath, token),
+    rule,
+    severity: 'review',
+    file: relPath,
+    line: 0,
+    value: `${mask(token)} ×${count}`,
+  }))
 }
 
 /**
  * Every file ends up in exactly one bucket, so nothing is skipped silently:
- * text (pattern rules), document (judged as a whole), image (metadata),
- * other binary (byte-level search for known values), or too large (reported).
- * `originals` are the raw values an earlier redact replaced; any copy of one
- * that is still present, in any file type, blocks.
+ * text (pattern rules), document (judged as a whole), image (metadata), other
+ * binary (byte-level search for known values), symlink (target only), or too
+ * large (reported).
  */
-export function scanTree(workDir, files, identity, aiNames = [], originals = []) {
-  const findings = []
-  const allValues = canaries(identity, originals)
-  const originalValues = canaries({ names: [], emails: [], handles: [] }, originals)
-  for (const rel of files) {
-    const abs = path.join(workDir, ...rel.split('/'))
-    findings.push(...scanPath(rel, identity))
-    const size = fs.statSync(abs).size
-    if (size > MAX_SCAN_BYTES) {
-      findings.push({ file: rel, line: 0, rule: 'not-scanned', severity: 'review', value: `${Math.round(size / 1048576)} MB, over the scan limit` })
-      continue
+export function scanFile(workDir, relPath, ctx, { symlink = false } = {}) {
+  const findings = scanPath(relPath, ctx)
+  if (symlink) return findings
+  const abs = native(workDir, relPath)
+  const size = fs.statSync(abs).size
+  if (size > MAX_SCAN_BYTES) {
+    findings.push({ id: findingId('not-scanned', relPath, size), rule: 'not-scanned', severity: 'review', file: relPath, line: 0, value: `${Math.round(size / 1048576)} MB, over the scan limit` })
+    return findings
+  }
+  const buf = fs.readFileSync(abs)
+  const leakRule = isBinary(buf) ? 'known-value-in-binary' : 'redacted-value-left'
+  const values = isBinary(buf) ? ctx.allValues : ctx.originals
+  if (!isBinary(buf)) {
+    findings.push(...scanText(relPath, buf.toString('utf8'), ctx))
+    if (isDocument(relPath)) {
+      findings.push({ id: findingId('document', relPath, 'text'), rule: 'document', severity: 'review', file: relPath, line: 0, value: 'text data file: check rows for personal data' })
     }
-    const buf = fs.readFileSync(abs)
-    if (!isBinary(buf)) {
-      const text = buf.toString('utf8')
-      findings.push(...scanText(rel, text, identity, aiNames))
-      for (const leak of findLeaks(rel, buf, originalValues)) {
-        findings.push({ file: rel, line: 0, rule: 'redacted-value-left', severity: 'block', value: leak.value })
-      }
-      if (isDocument(rel)) {
-        // Text data files (csv, tsv, vcf) were pattern-scanned above; names in rows need a look the rules cannot give.
-        findings.push({ file: rel, line: 0, rule: 'document', severity: 'review', value: 'text data file: check rows for personal data' })
-      }
-      continue
-    }
-    const docFindings = isDocument(rel) ? scanDocument(rel, buf, identity) : []
+  } else {
+    const docFindings = isDocument(relPath) ? scanDocument(relPath, buf, ctx) : []
     findings.push(...docFindings)
     const metadata = stripImageMetadata(buf)
     if (metadata?.removed.length) {
-      findings.push({ file: rel, line: 0, rule: 'image-metadata', severity: 'block', value: metadata.removed.join(', ') })
+      findings.push({ id: findingId('image-metadata', relPath, 'metadata'), rule: 'image-metadata', severity: 'block', file: relPath, line: 0, value: metadata.removed.join(', ') })
+    } else if (UNSTRIPPED_IMAGES.test(relPath)) {
+      findings.push({ id: findingId('image-metadata-unchecked', relPath, 'format'), rule: 'image-metadata-unchecked', severity: 'review', file: relPath, line: 0, value: 'format whose metadata (EXIF, XMP) the script cannot strip' })
     }
-    if (!docFindings.some((f) => f.severity === 'block')) {
-      for (const leak of findLeaks(rel, buf, allValues)) {
-        findings.push({ file: rel, line: 0, rule: 'known-value-in-binary', severity: 'block', value: `${leak.value} in ${leak.where}` })
-      }
-    }
+    if (docFindings.some((f) => f.severity === 'block')) return findings
   }
+  for (const leak of findLeaks(relPath, buf, values)) {
+    findings.push({ id: findingId(leakRule, relPath, leak.value), rule: leakRule, severity: 'block', file: relPath, line: 0, value: `${leak.masked} in ${leak.where}` })
+  }
+  findings.push(...tokenFindings(relPath, buf, ctx))
   return findings
+}
+
+export function dedupe(findings) {
+  const byId = new Map()
+  for (const f of findings) {
+    const existing = byId.get(f.id)
+    if (existing) existing.count++
+    else byId.set(f.id, { ...f, count: 1 })
+  }
+  return [...byId.values()]
+}
+
+export function scanTree(workDir, files, ctx, isSymlink = () => false) {
+  const findings = []
+  for (const rel of files) findings.push(...scanFile(workDir, rel, ctx, { symlink: isSymlink(rel) }))
+  return dedupe(findings)
 }

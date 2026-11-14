@@ -1,6 +1,6 @@
 # strip-ai
 
-A Claude Code plugin that exports a codebase as a clean zip: no AI-assistant traces, no PII, no secrets. The tests still pass.
+A Claude Code plugin that exports a codebase as a clean zip: no AI-assistant traces, no PII, no secrets, the project's checks still passing, and the zip verified by an independent extractor.
 
 ```
 /strip-ai:export [project-path]
@@ -8,35 +8,56 @@ A Claude Code plugin that exports a codebase as a clean zip: no AI-assistant tra
 
 Without a path it exports the current project. The output lands next to the project folder:
 
-- `<name>-clean.zip`: the code, under a `<name>/` root folder, without `.git` and with `.gitignore` respected.
-- `<name>-clean.report.md`: what was removed, what was redacted (masked), the test results before and after, and which tests were coupled to PII.
+- `<name>-clean.zip`: the code under a `<name>/` root folder, without `.git`. The `.gitignore` is respected, and files the project tracks are kept even when they match it.
+- `<name>-clean.report.md`: what was removed and redacted (values masked), the checks before and after, every decision with its reason, and what was not exported or not verified.
 
-The original project is never modified. Everything happens in a temp copy.
+The original project is never modified. Everything happens in a private copy.
 
-## What it does
+## Plugin or skill?
 
-1. **Copies** the tracked and untracked, non-ignored files to a temp work dir. `node_modules`, build output and ignored `.env` files stay out.
-2. **Runs the project's checks** (typecheck, lint, tests) to get a baseline.
-3. **Deletes AI tooling**: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursor/`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.github/prompts/`, `.aider*`, `.mcp.json`, `llms.txt` and others.
-4. **Cleans AI references** in docs, code, scripts and CI: sentences about coding agents, links to removed files, `/command` and `@agent` mentions of the removed commands, `Co-Authored-By` lines, env checks like `CLAUDE_CODE_*`, and project names like `*-agentic-*`. Product code that calls an AI API is kept and listed in the report.
-5. **Redacts PII and secrets** with consistent placeholders:
-   - Emails become `user1@example.com`.
-   - The owner's name in every spelling becomes `Jane Doe` / `JaneDoe` / `jane-doe`, filenames included.
-   - Home paths become `/home/user`.
-   - CPF and CNPJ get fakes with valid check digits.
-   - API keys, tokens, private keys and remote DB passwords become `REDACTED`.
-   - Documents with personal data (a CV, a customer spreadsheet) keep their name and type, but their content is replaced by a placeholder. Code that loads them still works. Placeholders can be generated for `.docx`, `.xlsx`, `.pdf` and `.rtf`. Other formats are flagged so Claude writes a neutral file of the same type.
-   - EXIF, XMP and text metadata (author, GPS) are stripped from JPEG and PNG.
-   - Any value redacted somewhere is also replaced wherever it appears verbatim.
-6. **Re-runs the checks.** Any new failure is fixed in the test data, never by skipping a test, and recorded in the report's "Tests coupled to PII" table.
-7. **Zips**, then proves the result. The script refuses to zip while AI files, env files with values, high-confidence PII, or any known sensitive value remains. That last check searches the raw bytes of every file, including inside docx/jar, gzip and PDF streams, and in UTF-16.
-8. **Audits the zip** independently. Each piece of the owner's identity (first name, surname, handle parts, domain labels) is searched on its own, to catch spellings the redaction rules did not know.
+A **plugin** is the package you install. It can bundle commands, skills, agents and hooks. A **skill** is one capability inside it: instructions plus the files they use. This plugin (`strip-ai`) ships one skill (`export`), so you run it as `/strip-ai:export`. Installing the plugin is what makes the skill available on every machine.
 
-The deterministic steps live in `skills/export/scripts/strip-ai.mjs`: plain Node, no dependencies, the same on Windows, macOS and Linux. Claude does the judgment steps (4, the review half of 5, 6 and the audit decisions in 8).
+## Why it can be trusted
+
+Every step that can be checked is checked by a script, not left to the model's diligence:
+
+- **Every change is a diff.** The private copy is a git repo with a baseline commit, so the export can tell exactly what changed. It refuses the zip when a test file was deleted, a skip/only marker was added, or assertions went down.
+- **Nothing is skipped silently.** Every file lands in one bucket:
+  - **Text** is checked with patterns.
+  - **Documents** are judged as a whole, and a CV becomes a same-type placeholder.
+  - **JPEG and PNG** have their metadata stripped.
+  - **Every other binary** goes through a byte-level search that unpacks docx, jar, gzip and PDF streams and reads UTF-16.
+  - **Files over 50 MB** are reported as not scanned.
+- **No blanket override.** Each finding needs a fix or an explicit decision (`allow <id> --reason`). Vague reasons are refused, some findings can never be allowed, and every decision goes into the report.
+- **Checks are records, not recollections.** The script runs the project's checks before and after cleaning and stores each exit code with a fingerprint of the files it ran against. It refuses the zip if a final check is missing, ran on different files, or regressed without a reason.
+- **The zip is verified by different code.** After writing the zip, the script extracts it with Python's zipfile, Info-ZIP unzip, bsdtar or PowerShell's Expand-Archive. It compares every file byte for byte and scans the extracted files again. On any problem the zip is deleted.
+- **The report is checked too.** `finalize` refuses a report that still has TODO sections, that does not match the zip's SHA-256, or that leaks a name, an email or a secret.
+- **Reproducible.** The same files always give the same bytes, with fixed timestamps and a stable order. The report records the zip's SHA-256.
+
+## What it removes and redacts
+
+- **AI tooling**: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursor/`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.github/prompts/`, `.aider*`, `.mcp.json`, `llms.txt` and more.
+- **AI references**, cleaned by Claude: prose about assistants and coding agents (English, Portuguese and Spanish: "feito com IA", "inteligência artificial"), mentions of the removed commands and agents, attribution lines, AI terms in file names, env checks and CI steps for AI tools. Product code that calls an AI API is kept and recorded as a decision.
+- **People**:
+  - **Where the names come from**: commit authors and co-authors, git config, the remote owner, the OS user, `package.json` and CODEOWNERS. Claude adds more from an inventory of domains, social profiles and author lines.
+  - **How they are matched**: in every spelling (`Maria Silva`, `MariaSilva`, `maria-silva`, `maria.silva`), with or without accents, inside file names too.
+  - **What is skipped**: system accounts (GitHub web merges) and common words are never treated as people.
+- **Placeholders that do not collide**: an email becomes `userN@example.com`, a name `Jane Doe`, a handle `example-user`, a personal domain `personal-site.example`. A placeholder the project already uses (a fixture `user1@example.com`) is skipped, so uniqueness and comparisons in tests hold. The same original always gets the same placeholder.
+- **Other PII and secrets**:
+  - **Replaced automatically**:
+    - CPF and CNPJ, with fakes that keep valid check digits;
+    - home paths;
+    - private keys and known token formats (AWS, GitHub, Slack, Stripe, OpenAI, Anthropic, JWT, Sentry, PostHog, Resend, npm, SendGrid);
+    - passwords in remote URLs.
+  - **Flagged for review**: unquoted secrets in YAML or env files, card numbers (Luhn check, published test cards excepted), IBAN, SSN, phone numbers and public IPs.
+- **Export hygiene**:
+  - **Symlinks** pointing outside the project are not followed, so no outside file ever ends up in the zip.
+  - **Line endings** that a Windows checkout turned into CRLF are restored to LF.
+  - **Files never committed** in the original project, and files created during the export, each need a decision.
 
 ## Install
 
-Requirements: Claude Code 2.1.275+, Node 18+, git.
+Requirements: Claude Code 2.1.275+, Node 18+ and git. For the independent zip check you also need Python, unzip or bsdtar; PowerShell covers it on Windows. Without any of these, the check falls back to the built-in reader and says so.
 
 Run this once per machine:
 
@@ -51,9 +72,9 @@ Or, from inside a session:
 ```
 
 What counts as a machine:
-- **Windows:** PowerShell, the desktop app's Code tab and VS Code all read `%USERPROFILE%\.claude`, so one install covers them.
-- **Ubuntu / WSL:** it has its own `~/.claude`, so install once more there.
-- **Cloud sessions (claude.ai/code):** they don't read your user plugins. Running the export there would need the plugin declared in each repo's `.claude/settings.json`, which is the kind of file this tool removes.
+- **Windows**: PowerShell, the desktop app's Code tab and VS Code all read `%USERPROFILE%\.claude`, so one install covers them.
+- **Ubuntu / WSL**: it has its own `~/.claude`, so install once more there.
+- **Cloud sessions**: they do not read user plugins.
 
 ## Update
 
@@ -68,26 +89,23 @@ claude plugin update strip-ai@the-almeida
 ## Develop
 
 ```bash
-node --test strip-ai/test/*.test.mjs
+node --test "strip-ai/test/*.test.mjs"
 ```
 
 ```bash
 claude plugin validate .
 ```
 
-To use the script without Claude, run the deterministic steps by hand:
+The script also runs without Claude. `status` always names the next step:
 
 ```bash
 node strip-ai/skills/export/scripts/strip-ai.mjs prepare ../some-project
 ```
 
-It prints a `workRoot`. Then run `strip`, `scan`, `redact`, `zip`, `audit` and `cleanup` with that `workRoot`.
-
 ## Limits
 
-- Names are found from git metadata (commit authors, `git config`, remote owner), the OS user and `package.json`. Other people's names in comments or seeds rely on Claude's review in step 5, not on a pattern.
-- Every file is checked: text by patterns, documents as a whole, JPEG/PNG for metadata, and every other binary by a byte-level search for known values. Only files over 50 MB are skipped, and they are reported as `not-scanned`.
-- The byte-level search finds known values only, not unknown PII inside a binary. A compiled asset with a stranger's name in it gets through unless Claude's review catches it.
-- PDF text extraction is best effort: fonts with custom encodings can hide text from the script, so documents with no detected data are still flagged for Claude to review.
-- Image metadata is stripped from JPEG and PNG only. WebP, HEIC, TIFF and GIF metadata is searched for known values but not stripped.
-- Archives are plain ZIP (no ZIP64): up to 65,534 files and 4 GB.
+- **Unknown people inside binaries**: the byte-level search finds known values only. A stranger's name inside a compiled asset gets through unless Claude's review catches it.
+- **PDF text extraction** is best effort, so documents with no detected data still get a review finding.
+- **Image metadata** is stripped from JPEG and PNG only. WebP, HEIC, TIFF and GIF are searched for known values, and they need a decision.
+- **Shallow clones** only show recent commit authors. `prepare` warns about it.
+- **Archive size**: plain ZIP (no ZIP64), so up to 65,534 files and 4 GB.

@@ -1,35 +1,49 @@
 #!/usr/bin/env node
-// Deterministic half of /strip-ai:export. The skill drives these steps and
-// does the judgment work (cleaning references, fixing tests) in between.
+// Deterministic half of /strip-ai:export. Claude does the judgment work;
+// this script does everything that can be checked, and refuses to move on
+// while anything is unchecked. `status` always says what is next.
 //
-//   prepare <project>            copy the project to a temp work dir
-//   env-in  <workRoot>           copy the source's git-ignored .env files in, for test runs only
-//   strip   <workRoot>           delete AI tooling files and folders
-//   scan    <workRoot> [--json]  list AI references, PII and secrets (masked)
-//   redact  <workRoot>           replace high-confidence PII and secrets, and documents with personal data
-//   placeholder <workRoot> <file>  replace one document's content with a placeholder of the same type
-//   zip     <workRoot> [--name n] [--out file] [--allow-env path]... [--force]
-//   audit   <workRoot> <zip>     independent check of the final zip for any piece of the owner's identity
-//   cleanup <workRoot>           delete the work dir
+//   prepare <project>                         copy the project into a new work dir
+//   env-in <WR>                               copy the source's ignored .env files in, for test runs only
+//   check <WR> baseline|final "<command>"     run a project check and record its result
+//   check <WR> baseline --none "<reason>"     record that the project has no checks
+//   strip <WR>                                delete AI tooling files and folders
+//   inventory <WR>                            list candidate identifiers (domains, profiles, authors, emails)
+//   identity <WR> list|add <kind> <value> [--as <placeholder>]|remove <value>|confirm
+//   scan <WR> [--all]                         list findings that still need a fix or a decision
+//   redact <WR>                               replace PII, secrets, personal documents and image metadata
+//   placeholder <WR> <file>                   replace one document's content with a same-type placeholder
+//   rename <WR> <from> <to>                   rename a file by hand, keeping track of where it came from
+//   allow <WR> <finding-id> --reason "<why>"  decide to keep one finding
+//   allow <WR> --rule <rule> [--file <glob>] --reason "<why>"
+//   status <WR>                               what is done, what is next
+//   zip <WR> [--name <name>] [--out <file>]   build, verify independently, write the report
+//   finalize <WR>                             check the report and the zip one last time
+//   cleanup <WR> | cleanup --stale            delete the work dir
 //
 // The original project is never written to.
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
-import { git, executableFiles, isGitRepo, listFiles, listIgnoredFiles } from './lib/git.mjs'
-import { collectIdentities } from './lib/identity.mjs'
-import { redactTree } from './lib/redact.mjs'
-import { aiPathToRemove, isEnvFile } from './lib/rules.mjs'
-import { scanTree } from './lib/scan.mjs'
-import { canaries, findLeaks, identityTokens } from './lib/leaks.mjs'
-import { readZip, writeZip } from './lib/zip.mjs'
+import { checkFindings, checkTable, loadChecks, recordNoChecks, runCheck } from './lib/checks.mjs'
+import { addDecision, decisionFor, loadDecisions, unresolved, validateReason } from './lib/decisions.mjs'
+import { changedSinceBaseline, diffFindings } from './lib/diff.mjs'
 import { PLACEHOLDER_FORMATS, placeholderFor } from './lib/documents.mjs'
-
-const WORK_PREFIX = 'strip-ai-'
-const HEAVY_DIRS = new Set([
-  '.git', 'node_modules', '.next', '.nuxt', '.turbo', '.cache', 'dist', 'build', 'out',
-  'target', '.venv', 'venv', '__pycache__', '.pytest_cache', 'coverage', '.gradle',
-])
+import { native, readJson, sha256, writeJson } from './lib/files.mjs'
+import { listIgnoredFiles, listSourceFiles } from './lib/git.mjs'
+import { scanContext } from './lib/context.mjs'
+import { collectIdentities, identityTokens, personalDomains } from './lib/identity.mjs'
+import { buildInventory } from './lib/inventory.mjs'
+import { findLeaks, findTokens } from './lib/leaks.mjs'
+import { redactTree } from './lib/redact.mjs'
+import { buildReport, TODO } from './lib/report.mjs'
+import { aiPathTerm, aiPathToRemove, isEnvFile, mask } from './lib/rules.mjs'
+import { findingId, scanText, scanTree } from './lib/scan.mjs'
+import { verifyZip } from './lib/verify.mjs'
+import {
+  entryData, exportFiles, HEAVY_DIRS, isSymlinkEntry, isWorkRoot, loadState, prepareWork, saveState,
+  sourceFingerprint, staleWorkRoots, treeFingerprint, workPath,
+} from './lib/workspace.mjs'
+import { buildZip } from './lib/zip.mjs'
 
 function fail(message) {
   console.error(`strip-ai: ${message}`)
@@ -40,232 +54,257 @@ function print(obj) {
   console.log(JSON.stringify(obj, null, 2))
 }
 
-function native(base, rel) {
-  return path.join(base, ...rel.split('/'))
+const now = () => new Date().toISOString()
+const loadIdentity = (wr) => readJson(workPath(wr, 'identity.json'))
+const saveIdentity = (wr, identity) => writeJson(workPath(wr, 'identity.json'), identity)
+// Raw values redaction replaced: temp work root only, never printed or reported.
+const loadOriginals = (wr) => readJson(workPath(wr, 'originals.json'), [])
+
+function context(workRoot, state) {
+  const identity = loadIdentity(workRoot)
+  // The rules redact actually used (placeholders chosen against the project's own values), when still current.
+  const saved = readJson(workPath(workRoot, 'rules.json'), null)
+  return scanContext(identity, {
+    rules: saved?.identityVersion === identity.version ? saved.rules : undefined,
+    originals: loadOriginals(workRoot),
+    aiNames: state.aiNames ?? [],
+  })
 }
 
-function loadState(workRoot) {
-  const file = path.join(workRoot ?? '', 'state.json')
-  if (!workRoot || !fs.existsSync(file)) fail(`no work dir at ${workRoot}. Run "prepare" first.`)
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+/** Everything known about the export right now. */
+function evaluate(workRoot) {
+  const state = loadState(workRoot)
+  const ctx = context(workRoot, state)
+  const files = exportFiles(workRoot, state)
+  const fingerprint = treeFingerprint(workRoot, state, files)
+  const checks = loadChecks(workRoot)
+  const decisions = loadDecisions(workRoot)
+  const findings = [
+    ...scanTree(state.workDir, files, ctx, (rel) => isSymlinkEntry(state, rel)),
+    ...diffFindings(workRoot, state, files, findingId, ctx.cleanPath),
+    ...(state.steps.strip ? checkFindings(checks, fingerprint, findingId) : []),
+  ]
+  writeJson(workPath(workRoot, 'findings.json'), findings)
+  return { state, ctx, files, fingerprint, checks, decisions, findings, open: unresolved(findings, decisions) }
 }
 
-function loadIdentity(workRoot) {
-  return JSON.parse(fs.readFileSync(path.join(workRoot, 'identity.json'), 'utf8'))
-}
-
-// Raw values that redaction replaced. Like identity.json it lives only in the
-// temp work root (deleted by cleanup) and never goes into output or reports.
-function loadOriginals(workRoot) {
-  const file = path.join(workRoot, 'originals.json')
-  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []
-}
-
-function saveOriginals(workRoot, values) {
-  const merged = [...new Set([...loadOriginals(workRoot), ...values])]
-  fs.writeFileSync(path.join(workRoot, 'originals.json'), JSON.stringify(merged))
-}
-
-function scanWork(workRoot, state, files = exportFiles(state.workDir)) {
-  return scanTree(state.workDir, files, loadIdentity(workRoot), state.aiNames, loadOriginals(workRoot))
-}
-
-function walk(dir, base = dir, out = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (!HEAVY_DIRS.has(entry.name)) walk(path.join(dir, entry.name), base, out)
-    } else if (entry.isFile()) {
-      out.push(path.relative(base, path.join(dir, entry.name)).split(path.sep).join('/'))
-    }
+function summarize(findings) {
+  const out = {}
+  for (const f of findings) {
+    out[f.severity] ??= {}
+    out[f.severity][f.rule] = (out[f.severity][f.rule] ?? 0) + 1
   }
   return out
 }
 
-/** Files that would go into the zip: everything not ignored by the project's own .gitignore. */
-function exportFiles(workDir) {
-  return listFiles(workDir).filter((rel) => {
-    const abs = native(workDir, rel)
-    return fs.existsSync(abs) && fs.statSync(abs).isFile()
-  })
+function printFindings(list, decisions, limit = 300) {
+  const order = ['block', 'review', 'clean', 'fixture']
+  const sorted = [...list].sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity) || a.file.localeCompare(b.file))
+  for (const f of sorted.slice(0, limit)) {
+    const decided = decisionFor(f, decisions) ? '  [allowed]' : ''
+    console.log(`${f.id}  ${f.severity.padEnd(6)} ${f.rule.padEnd(22)} ${f.file}${f.line ? `:${f.line}` : ''}  ${f.value}${f.count > 1 ? `  (${f.count}x)` : ''}${decided}`)
+  }
+  if (sorted.length > limit) console.log(`… ${sorted.length - limit} more in findings.json`)
 }
 
+// ---------------------------------------------------------------- commands
+
 function prepare(projectArg) {
-  const source = path.resolve(projectArg ?? process.cwd())
-  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) fail(`not a directory: ${source}`)
-  const name = path.basename(source)
-  const workRoot = fs.mkdtempSync(path.join(os.tmpdir(), WORK_PREFIX))
-  const workDir = path.join(workRoot, name)
-
-  const fromGit = isGitRepo(source)
-  const files = fromGit ? listFiles(source) : walk(source)
-  let copied = 0
-  for (const rel of files) {
-    const from = native(source, rel)
-    if (!fs.existsSync(from) || !fs.statSync(from).isFile()) continue // deleted or submodule
-    const to = native(workDir, rel)
-    fs.mkdirSync(path.dirname(to), { recursive: true })
-    fs.copyFileSync(from, to)
-    copied++
-  }
-  fs.mkdirSync(workDir, { recursive: true })
-  // A private repo inside the work dir gives the export the project's own .gitignore semantics.
-  git(workDir, ['-c', 'init.defaultBranch=main', 'init', '-q'])
-
-  const state = {
-    source,
-    name,
-    workDir,
-    fromGit,
-    executables: fromGit ? executableFiles(source) : [],
-    createdAt: new Date().toISOString(),
-  }
-  fs.writeFileSync(path.join(workRoot, 'state.json'), JSON.stringify(state, null, 2))
-  // Raw identities stay in the temp work root only. They are needed to redact and are deleted by cleanup.
-  const identity = fromGit ? collectIdentities(source) : { names: [], emails: [], handles: [] }
-  fs.writeFileSync(path.join(workRoot, 'identity.json'), JSON.stringify(identity))
+  const { workRoot, state } = prepareWork(projectArg ?? process.cwd())
+  const identity = collectIdentities(state.source)
+  saveIdentity(workRoot, identity)
   print({
     workRoot,
-    workDir,
-    files: copied,
-    source: fromGit ? 'git (tracked + untracked, .gitignore respected)' : 'directory walk (no git)',
-    identities: { names: identity.names.length, emails: identity.emails.length, handles: identity.handles.length },
+    files: state.sourceFiles.length,
+    untracked: state.untracked.length,
+    lineEndingsNormalized: state.normalizedLineEndings.length,
+    skipped: {
+      symlinksOutsideProject: state.skipped.symlinksOutside.length,
+      submodules: state.skipped.submodules.length,
+      untrackedInDependencyFolders: state.skipped.heavyUntracked,
+      missingInWorktree: state.skipped.missingInWorktree.length,
+    },
+    identities: { names: identity.names.length, emails: identity.emails.length, handles: identity.handles.length, domains: identity.domains.length, dropped: identity.dropped.length },
+    warnings: [
+      ...(state.shallow ? ['shallow clone: authors of older commits are unknown. Add them with "identity add".'] : []),
+      ...(state.fromGit ? [] : ['not a git repo: no identities were collected. Add them with "identity add".']),
+    ],
+    next: `env-in ${workRoot}, install dependencies in ${state.workDir}, then "check ${workRoot} baseline <command>" for each check`,
   })
 }
 
 function envIn(workRoot) {
   const state = loadState(workRoot)
-  if (!state.fromGit) return print({ copied: [], note: 'source is not a git repo; env files were already copied' })
+  if (!state.fromGit) return print({ copied: [], note: 'source is not a git repo; nothing is ignored' })
   const copied = []
   for (const rel of listIgnoredFiles(state.source)) {
-    const base = path.posix.basename(rel)
-    if (!isEnvFile(base) || rel.split('/').some((p) => HEAVY_DIRS.has(p))) continue
+    if (!isEnvFile(path.posix.basename(rel)) || rel.split('/').some((p) => HEAVY_DIRS.has(p))) continue
     const to = native(state.workDir, rel)
     if (fs.existsSync(to)) continue
     fs.mkdirSync(path.dirname(to), { recursive: true })
     fs.copyFileSync(native(state.source, rel), to)
     copied.push(rel)
   }
-  print({ copied, note: 'These stay git-ignored in the work dir, so "zip" leaves them out.' })
+  print({ copied, note: 'These stay ignored in the work dir, so they are never exported.' })
+}
+
+function check(workRoot, phase, args, flags) {
+  const state = loadState(workRoot)
+  if (phase === 'baseline' && state.steps.strip) fail('baseline checks must run before "strip", on the untouched copy. Run "prepare" again.')
+  if (flags.none !== undefined) {
+    if (phase !== 'baseline') fail('--none only applies to baseline')
+    recordNoChecks(workRoot, validateReason(flags.none))
+    return print({ recorded: 'no checks', reason: flags.none })
+  }
+  const command = args.join(' ')
+  if (!command.trim()) fail('pass the command to run, in quotes')
+  const { run, tail } = runCheck(workRoot, state.workDir, phase, command, { timeoutSec: Number(flags.timeout ?? 1800), fingerprint: treeFingerprint(workRoot, state) })
+  console.log(tail)
+  print({ phase, command: run.command, exitCode: run.exitCode, timedOut: run.timedOut, seconds: Math.round(run.durationMs / 1000), log: run.log })
 }
 
 function strip(workRoot) {
   const state = loadState(workRoot)
-  const targets = new Set()
-  for (const rel of listFiles(state.workDir)) {
-    const target = aiPathToRemove(rel)
-    if (target) targets.add(target)
+  const checks = loadChecks(workRoot)
+  if (!checks.runs.some((r) => r.phase === 'baseline') && !checks.none) {
+    fail('record baseline checks first ("check <WR> baseline <command>", or "--none <reason>"), so there is something to compare against')
   }
-  // Names of the removed commands, skills and agents, so references like /name or @name can be found.
+  const files = exportFiles(workRoot, state)
+  const targets = new Set()
   const aiNames = new Set(state.aiNames ?? [])
-  for (const rel of listFiles(state.workDir)) {
-    if (!aiPathToRemove(rel)) continue
+  for (const rel of files) {
+    const target = aiPathToRemove(rel)
+    if (!target) continue
+    targets.add(target)
     const m =
       /(?:^|\/)(?:commands|agents|prompts|chatmodes)\/(?:.*\/)?([^/]+?)(?:\.(?:prompt|chatmode|agent))?\.md$/i.exec(rel) ??
       /(?:^|\/)skills\/([^/]+)\/SKILL\.md$/i.exec(rel)
     if (m) aiNames.add(m[1])
   }
   for (const target of targets) fs.rmSync(native(state.workDir, target), { recursive: true, force: true })
+  state.removedAi = [...new Set([...(state.removedAi ?? []), ...targets])].sort()
   state.aiNames = [...aiNames].sort()
-  fs.writeFileSync(path.join(workRoot, 'state.json'), JSON.stringify(state, null, 2))
-  print({ removed: [...targets].sort(), aiCommandNames: state.aiNames })
+  state.steps.strip = now()
+  saveState(workRoot, state)
+  print({ removed: [...targets].sort(), aiCommandNames: state.aiNames, next: `inventory ${workRoot} and identity ${workRoot} list` })
 }
 
-function summarize(findings) {
-  const bySeverity = {}
-  for (const f of findings) {
-    bySeverity[f.severity] ??= {}
-    bySeverity[f.severity][f.rule] = (bySeverity[f.severity][f.rule] ?? 0) + 1
+function inventory(workRoot) {
+  const state = loadState(workRoot)
+  const inv = buildInventory(state.workDir, exportFiles(workRoot, state))
+  print({
+    note: 'Raw values, for this session only. Add every one that identifies a real person (the owner or anyone else): identity add <kind> <value>.',
+    emails: inv.emails,
+    domains: inv.domains,
+    profiles: inv.profiles,
+    authorLines: inv.authorLines,
+  })
+  state.steps.inventory = now()
+  saveState(workRoot, state)
+}
+
+function identityCmd(workRoot, sub, args, flags) {
+  const state = loadState(workRoot)
+  const identity = loadIdentity(workRoot)
+  const kinds = { name: 'names', handle: 'handles', email: 'emails', domain: 'domains' }
+  if (sub === 'list' || !sub) {
+    return print({
+      version: identity.version,
+      confirmed: state.steps.identity?.version === identity.version,
+      names: identity.names,
+      emails: identity.emails,
+      handles: identity.handles,
+      domains: identity.domains,
+      literals: identity.literals,
+      dropped: identity.dropped,
+      tokens: identityTokens(identity),
+      note: 'Raw values, for this session only. Remove common words that are not people; add what is missing.',
+    })
   }
-  return bySeverity
+  if (sub === 'add') {
+    const [kind, ...rest] = args
+    const value = rest.join(' ').trim()
+    if (!kind || !value) fail('usage: identity <WR> add name|handle|email|domain|text <value> [--as <placeholder>]')
+    if (value.length < 3) fail('value too short to redact safely')
+    if (kind === 'text') identity.literals.push({ value, placeholder: flags.as ?? 'REDACTED' })
+    else if (kinds[kind]) {
+      const list = identity[kinds[kind]]
+      if (!list.some((v) => v.toLowerCase() === value.toLowerCase())) list.push(kind === 'email' ? value.toLowerCase() : value)
+      if (kind === 'email') identity.domains = [...new Set([...identity.domains, ...personalDomains([value.toLowerCase()])])]
+    } else fail(`unknown kind "${kind}": use name, handle, email, domain or text`)
+  } else if (sub === 'remove') {
+    const value = args.join(' ').trim().toLowerCase()
+    let removed = 0
+    for (const key of Object.values(kinds)) {
+      const before = identity[key].length
+      identity[key] = identity[key].filter((v) => v.toLowerCase() !== value)
+      removed += before - identity[key].length
+    }
+    const before = identity.literals.length
+    identity.literals = identity.literals.filter((l) => l.value.toLowerCase() !== value)
+    removed += before - identity.literals.length
+    if (!removed) fail(`"${value}" is not in the identity list`)
+  } else if (sub === 'confirm') {
+    state.steps.identity = { version: identity.version, at: now() }
+    saveState(workRoot, state)
+    return print({ confirmed: identity.version, next: `scan ${workRoot}, clean AI references, then redact ${workRoot}` })
+  } else fail(`unknown identity command "${sub}"`)
+  identity.version++
+  saveIdentity(workRoot, identity)
+  print({ version: identity.version, note: 'identity changed: confirm it again, then (re)run redact' })
 }
 
 function scan(workRoot, flags) {
-  const state = loadState(workRoot)
-  const findings = scanWork(workRoot, state)
-  fs.writeFileSync(path.join(workRoot, 'findings.json'), JSON.stringify(findings, null, 2))
-  if (flags.json) return print(findings)
-  console.log(JSON.stringify({ counts: summarize(findings), full: path.join(workRoot, 'findings.json') }, null, 2))
-  const order = ['block', 'review', 'clean']
-  const seen = new Set()
-  const shown = findings
-    .filter((f) => order.includes(f.severity))
-    .filter((f) => {
-      const key = `${f.severity}\0${f.rule}\0${f.file}\0${f.line}`
-      return !seen.has(key) && seen.add(key)
-    })
-    .sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity))
-  for (const f of shown.slice(0, 400)) console.log(`${f.severity.padEnd(6)} ${f.rule.padEnd(20)} ${f.file}:${f.line}  ${f.value}`)
-  if (shown.length > 400) console.log(`... ${shown.length - 400} more in findings.json`)
+  const { findings, open, decisions } = evaluate(workRoot)
+  const shown = flags.all ? findings : open
+  print({ open: open.length, total: findings.length, counts: summarize(open) })
+  printFindings(shown, decisions)
 }
 
 function redact(workRoot) {
   const state = loadState(workRoot)
-  const { rawOriginals, ...result } = redactTree(state.workDir, exportFiles(state.workDir), loadIdentity(workRoot))
-  saveOriginals(workRoot, rawOriginals)
-  fs.writeFileSync(path.join(workRoot, 'redactions.json'), JSON.stringify(result, null, 2))
-  // Self-check: whatever redaction could not fix is listed now, not discovered at zip time.
-  const remaining = scanWork(workRoot, state).filter((f) => f.severity === 'block')
+  const identity = loadIdentity(workRoot)
+  if (!state.steps.strip) fail('run "strip" first')
+  if (!state.steps.inventory) fail('review the inventory first: "inventory <WR>", then add any identifier it shows with "identity add"')
+  if (state.steps.identity?.version !== identity.version) fail('confirm the identity list first: "identity <WR> list", then "identity <WR> confirm"')
+  const { rawOriginals, renamedRaw, rules, ...result } = redactTree(state.workDir, exportFiles(workRoot, state), identity, { isSymlink: (rel) => isSymlinkEntry(state, rel) })
+  writeJson(workPath(workRoot, 'originals.json'), [...new Set([...loadOriginals(workRoot), ...rawOriginals])])
+  writeJson(workPath(workRoot, 'rules.json'), { identityVersion: identity.version, rules })
+  const previous = readJson(workPath(workRoot, 'redactions.json'), null)
+  writeJson(workPath(workRoot, 'redactions.json'), previous ? mergeRedactions(previous, result) : result)
+  state.renamed ??= {}
+  for (const r of renamedRaw) {
+    state.renamed[r.to] = state.renamed[r.from] ?? r.from
+    delete state.renamed[r.from]
+  }
+  state.steps.redact = { identityVersion: identity.version, at: now() }
+  saveState(workRoot, state)
+  const { open } = evaluate(workRoot)
   print({
     filesChanged: result.changedFiles.length,
     renamed: result.renamed,
+    renameConflicts: result.renameConflicts.map((c) => `${c.masked} -> ${c.target} exists already: rename it by hand`),
     replacedDocuments: result.replacedDocuments,
-    documentsNeedingAction: result.documentsNeedingAction.map((d) => ({
-      ...d,
-      action: `no ${path.extname(d.file)} placeholder builder (supported: ${PLACEHOLDER_FORMATS.join(', ')}): delete it or write a neutral file of the same type`,
-    })),
+    documentsNeedingAction: result.documentsNeedingAction.map((d) => ({ ...d, action: `no placeholder builder for this type (supported: ${PLACEHOLDER_FORMATS.join(', ')}): write a neutral file of the same type` })),
     strippedImageMetadata: result.strippedMetadata,
     redactions: result.redactions.map((r) => `${r.category}: ${r.original} -> ${r.placeholder} (${r.count}x in ${r.files.length} file(s))`),
-    remainingBlocking: remaining.map((f) => `${f.rule} at ${f.file}:${f.line} (${f.value})`),
-    full: path.join(workRoot, 'redactions.json'),
+    suspiciousIdentities: result.suspiciousIdentities.length
+      ? result.suspiciousIdentities.map((s) => `${s.literal} replaced ${s.count} times: check it is a person, not a common word`)
+      : undefined,
+    openFindings: summarize(open),
+    next: `scan ${workRoot}`,
   })
 }
 
-function zip(workRoot, flags) {
-  const state = loadState(workRoot)
-  const files = exportFiles(state.workDir).filter((rel) => rel !== '.git' && !rel.startsWith('.git/'))
-  const problems = []
-
-  for (const rel of files) if (aiPathToRemove(rel)) problems.push(`AI tooling file still present: ${rel}`)
-  for (const rel of files) {
-    if (isEnvFile(path.posix.basename(rel)) && !flags.allowEnv.includes(rel)) {
-      problems.push(`env file would be included: ${rel} (blank its secrets, then pass --allow-env ${rel}, or delete it)`)
-    }
+function mergeRedactions(a, b) {
+  return {
+    ...b,
+    changedFiles: [...new Set([...a.changedFiles, ...b.changedFiles])].sort(),
+    renamed: [...a.renamed, ...b.renamed],
+    replacedDocuments: [...a.replacedDocuments, ...b.replacedDocuments],
+    strippedMetadata: [...a.strippedMetadata, ...b.strippedMetadata],
+    redactions: [...a.redactions, ...b.redactions],
   }
-  const blocking = scanWork(workRoot, state, files).filter((f) => f.severity === 'block')
-  if (blocking.length && !flags.force) {
-    for (const f of blocking.slice(0, 50)) problems.push(`${f.rule} at ${f.file}:${f.line} (${f.value})`)
-    if (blocking.length > 50) problems.push(`... ${blocking.length - 50} more blocking findings`)
-  }
-  if (problems.length) fail(`refusing to zip:\n  - ${problems.join('\n  - ')}`)
-
-  const rootName = flags.name ?? state.name
-  let out = flags.out ? path.resolve(flags.out) : path.join(path.dirname(state.source), `${rootName}-clean.zip`)
-  if (!flags.out && fs.existsSync(out)) out = out.replace(/\.zip$/, `-${Date.now()}.zip`)
-  const executables = new Set(state.executables)
-  const entries = files.sort().map((rel) => {
-    const abs = native(state.workDir, rel)
-    const stat = fs.statSync(abs)
-    const exec = executables.has(rel) || (process.platform !== 'win32' && stat.mode & 0o111)
-    return { name: `${rootName}/${rel}`, data: fs.readFileSync(abs), mode: exec ? 0o755 : 0o644, mtime: stat.mtime }
-  })
-  // Byte-level proof, independent of the pattern rules: no known sensitive
-  // value survives in any entry, including inside docx/xlsx/jar, gzip and PDF streams.
-  const values = canaries(loadIdentity(workRoot), loadOriginals(workRoot))
-  const leaks = entries.flatMap((e) => findLeaks(e.name, e.data, values))
-  if (leaks.length && !flags.force) {
-    fail(`refusing to zip, known sensitive values found:\n  - ${leaks.slice(0, 50).map((l) => `${l.value} in ${l.where}`).join('\n  - ')}`)
-  }
-  writeZip(out, entries)
-  const check = readZip(out)
-  if (check.length !== entries.length) fail(`zip verification failed: wrote ${entries.length}, read ${check.length}`)
-  print({
-    zip: out,
-    report: out.replace(/\.zip$/, '.report.md'),
-    files: entries.length,
-    bytes: fs.statSync(out).size,
-    forcedPastFindings: flags.force ? blocking.length : 0,
-    forcedPastLeaks: flags.force ? leaks.map((l) => `${l.value} in ${l.where}`) : [],
-  })
 }
 
 function placeholder(workRoot, rel) {
@@ -275,65 +314,286 @@ function placeholder(workRoot, rel) {
   const data = placeholderFor(rel)
   if (!data) fail(`no placeholder builder for ${path.extname(rel)} (supported: ${PLACEHOLDER_FORMATS.join(', ')})`)
   fs.writeFileSync(abs, data)
+  const redactions = readJson(workPath(workRoot, 'redactions.json'), null)
+  if (redactions) {
+    redactions.replacedDocuments.push({ file: rel, reasons: ['replaced by hand after review'] })
+    writeJson(workPath(workRoot, 'redactions.json'), redactions)
+  }
   print({ replaced: rel, bytes: data.length })
 }
 
-function audit(workRoot, zipPath) {
-  if (!zipPath || !fs.existsSync(zipPath)) fail(`no zip at ${zipPath}`)
-  const tokens = identityTokens(loadIdentity(workRoot))
-  const hits = {}
-  for (const entry of readZip(zipPath)) {
-    for (const leak of findLeaks(entry.name, entry.data, tokens)) {
-      ;(hits[leak.value] ??= []).push(leak.where)
-    }
-    for (const t of tokens) if (entry.name.toLowerCase().includes(t)) (hits[`${t[0]}***`] ??= []).push(`${entry.name} (path)`)
+function rename(workRoot, from, to) {
+  const state = loadState(workRoot)
+  if (!from || !to) fail('usage: rename <WR> <from> <to>')
+  const src = native(state.workDir, from)
+  const dest = native(state.workDir, to)
+  if (!fs.existsSync(src)) fail(`no such file in the work dir: ${from}`)
+  if (fs.existsSync(dest)) fail(`${to} exists already`)
+  fs.mkdirSync(path.dirname(dest), { recursive: true })
+  fs.renameSync(src, dest)
+  state.renamed ??= {}
+  state.renamed[to] = state.renamed[from] ?? from
+  delete state.renamed[from]
+  saveState(workRoot, state)
+  const redactions = readJson(workPath(workRoot, 'redactions.json'), null)
+  if (redactions) {
+    redactions.renamed.push({ from: mask(from), to })
+    writeJson(workPath(workRoot, 'redactions.json'), redactions)
   }
+  print({ renamed: to, note: 'update every reference to the old name' })
+}
+
+function allow(workRoot, args, flags) {
+  const { findings, ctx } = evaluate(workRoot)
+  const reason = flags.reason
+  if (reason && (ctx.matcher.test(reason) || ctx.tokens.some((t) => reason.toLowerCase().includes(t)))) {
+    fail('the reason contains a piece of an identity. Describe the value without quoting it.')
+  }
+  try {
+    const matched = addDecision(workRoot, { id: args[0], rule: flags.rule, glob: flags.file }, reason, findings)
+    print({ allowed: matched.length, rule: matched[0].rule, reason })
+  } catch (e) {
+    fail(e.message)
+  }
+}
+
+function status(workRoot) {
+  const e = evaluate(workRoot)
+  const { state, checks, open, ctx } = e
+  const identity = ctx.identity
+  const table = checkTable(checks)
+  const zipValid = state.zip && fs.existsSync(state.zip.path) && state.zip.treeFingerprint === e.fingerprint
+  const steps = [
+    ['prepare', true, state.steps.prepare],
+    ['baseline checks', table.length > 0 || Boolean(checks.none), checks.none ? `none: ${checks.none.reason}` : `${table.length} command(s)`],
+    ['strip', Boolean(state.steps.strip), state.steps.strip ? `${(state.removedAi ?? []).length} path(s) removed` : `strip ${workRoot}`],
+    ['inventory reviewed', Boolean(state.steps.inventory), state.steps.inventory ? 'listed' : `inventory ${workRoot}`],
+    ['identity confirmed', state.steps.identity?.version === identity.version, `version ${identity.version}`],
+    ['redact', state.steps.redact?.identityVersion === identity.version, state.steps.redact ? `with identity version ${state.steps.redact.identityVersion}` : `redact ${workRoot}`],
+    ['final checks', table.length ? table.every((c) => c.final && c.final.fingerprint === e.fingerprint) : Boolean(checks.none), table.map((c) => `${c.command}: ${c.final ? (c.final.fingerprint === e.fingerprint ? `exit ${c.final.exitCode}` : 'stale') : 'missing'}`).join('; ') || 'not needed'],
+    ['findings resolved', open.length === 0, `${open.length} open: ${JSON.stringify(summarize(open))}`],
+    ['zip verified', Boolean(zipValid), state.zip ? (zipValid ? `${state.zip.path} (${state.zip.tool})` : 'stale: files changed after zip, zip again') : 'not built'],
+    ['finalize', Boolean(zipValid && state.steps.finalize && state.report?.zipSha256 === state.zip.sha256), state.steps.finalize ?? 'not run'],
+  ]
+  for (const [name, done, detail] of steps) console.log(`${done ? '✓' : '✗'} ${name.padEnd(20)} ${detail ?? ''}`)
+  const next = steps.find(([, done]) => !done)
+  console.log(next ? `\nNext: ${next[0]}` : '\nREADY: nothing left to do.')
+}
+
+function chooseOut(state, rootName, outFlag) {
+  if (outFlag) return path.resolve(outFlag)
+  const dir = path.dirname(state.source)
+  let out = path.join(dir, `${rootName}-clean.zip`)
+  for (let i = 2; fs.existsSync(out); i++) out = path.join(dir, `${rootName}-clean-${i}.zip`)
+  return out
+}
+
+function nameProblems(name, ctx) {
+  const problems = []
+  if (ctx.matcher.test(name) || ctx.tokens.some((t) => name.toLowerCase().includes(t))) problems.push('contains a piece of an identity')
+  if (aiPathTerm(name)) problems.push(`contains the AI term "${aiPathTerm(name)}"`)
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) problems.push('use letters, digits, dots, dashes and underscores only')
+  return problems
+}
+
+function zip(workRoot, flags) {
+  const e = evaluate(workRoot)
+  const { state, ctx, files, open, decisions } = e
+  const identity = ctx.identity
+  if (state.steps.redact?.identityVersion !== identity.version) fail('run "redact" with the confirmed identity first')
+  if (open.length) {
+    printFindings(open, decisions, 50)
+    fail(`${open.length} finding(s) still need a fix or a decision ("allow"). See above or run "scan".`)
+  }
+  const rootName = flags.name ?? ctx.cleanPath(state.name)
+  const problems = nameProblems(rootName, ctx)
+  if (problems.length) fail(`zip root name "${rootName}" ${problems.join('; ')}: pass --name <clean-name>`)
+  const out = chooseOut(state, rootName, flags.out)
+  const outProblems = nameProblems(path.basename(out, '.zip'), ctx)
+  if (outProblems.length) fail(`zip file name ${outProblems.join('; ')}: pass --out`)
+
+  const executables = new Set(state.executables)
+  const entries = files.map((rel) => {
+    const symlink = isSymlinkEntry(state, rel)
+    const abs = native(state.workDir, rel)
+    const exec = !symlink && (executables.has(rel) || (process.platform !== 'win32' && (fs.statSync(abs).mode & 0o111) !== 0))
+    return { name: `${rootName}/${rel}`, data: entryData(state, rel), mode: exec ? 0o755 : 0o644, symlink }
+  })
+  // A zip this work dir built before is replaced, so an outdated one is never left next to the project.
+  const previous = state.zip
+  if (previous && fs.existsSync(previous.path) && sha256(fs.readFileSync(previous.path)) === previous.sha256) {
+    fs.rmSync(previous.path, { force: true })
+    fs.rmSync(previous.report, { force: true })
+  }
+  delete state.zip
+  saveState(workRoot, state)
+  const zipBuf = buildZip(entries)
+  fs.writeFileSync(out, zipBuf)
+  const verifyDir = workPath(workRoot, 'verify')
+  const verification = verifyZip(out, verifyDir, entries.map((x) => ({ name: x.name, sha256: sha256(x.data), symlink: x.symlink })))
+  // Scan the independently extracted files exactly as the work dir was scanned.
+  if (!verification.problems.length) {
+    const extracted = path.join(verifyDir, rootName)
+    const again = scanTree(extracted, files, ctx, (rel) => isSymlinkEntry(state, rel))
+    for (const f of unresolved(again, decisions)) verification.problems.push(`after extraction: ${f.rule} at ${f.file} (${f.value})`)
+  }
+  fs.rmSync(verifyDir, { recursive: true, force: true })
+  if (verification.problems.length) {
+    fs.rmSync(out, { force: true })
+    fail(`verification failed, zip deleted:\n  - ${verification.problems.slice(0, 50).join('\n  - ')}`)
+  }
+
+  const zipSha = sha256(zipBuf)
+  const report = out.replace(/\.zip$/i, '.report.md')
+  const redactions = readJson(workPath(workRoot, 'redactions.json'), { redactions: [], renamed: [], replacedDocuments: [], strippedMetadata: [] })
+  const changes = changedSinceBaseline(workRoot, state)
+  const checks = loadChecks(workRoot)
+  const findings = readJson(workPath(workRoot, 'findings.json'), [])
+  const decided = [
+    ...Object.values(decisions.byId).map((d) => ({ rule: d.rule, file: d.file, value: d.value, reason: d.reason })),
+    ...decisions.byRule.map((d) => ({ rule: d.rule, file: d.glob, value: `${d.matched} finding(s)`, reason: d.reason })),
+  ]
+  fs.writeFileSync(
+    report,
+    buildReport({
+      rootName,
+      zipName: path.basename(out),
+      sha256: zipSha,
+      files: entries.length,
+      bytes: zipBuf.length,
+      verifier: verification.tool,
+      independent: verification.independent,
+      date: now().slice(0, 10),
+      shallow: state.shallow,
+      noChecks: checks.none?.reason,
+      checks: checkTable(checks),
+      removedAi: (state.removedAi ?? []).map(ctx.cleanPath),
+      aiNames: state.aiNames ?? [],
+      redactions: redactions.redactions,
+      renamed: redactions.renamed.map((r) => r.to),
+      replacedDocuments: redactions.replacedDocuments,
+      strippedMetadata: redactions.strippedMetadata,
+      normalized: state.normalizedLineEndings,
+      decisions: decided,
+      changes: {
+        modified: changes.filter((c) => c.status === 'M').length,
+        deleted: changes.filter((c) => c.status === 'D').length,
+        added: findings.filter((f) => f.rule === 'added-file').map((f) => f.file),
+      },
+      skipped: {
+        symlinksOutside: state.skipped.symlinksOutside.length,
+        submodules: state.skipped.submodules.map(ctx.cleanPath),
+        heavyUntracked: state.skipped.heavyUntracked,
+        missingInWorktree: state.skipped.missingInWorktree.length,
+      },
+    }),
+  )
+  state.zip = { path: out, sha256: zipSha, files: entries.length, bytes: zipBuf.length, tool: verification.tool, independent: verification.independent, treeFingerprint: e.fingerprint, report, rootName }
+  delete state.steps.finalize
+  saveState(workRoot, state)
   print({
-    tokensChecked: tokens.length,
-    hits: Object.entries(hits).map(([token, where]) => ({ token, files: where.length, where: where.slice(0, 20) })),
-    note: Object.keys(hits).length
-      ? 'Open each file and decide: a leak (fix it in the work dir and zip again) or an unrelated word (note it in the report).'
-      : 'No piece of the identity found.',
+    zip: out,
+    sha256: zipSha,
+    files: entries.length,
+    verifiedBy: verification.tool,
+    independent: verification.independent,
+    report,
+    next: `fill every "${TODO}" section in the report, then: finalize ${workRoot}`,
   })
 }
 
-function cleanup(workRoot) {
-  const resolved = path.resolve(workRoot ?? '')
-  const inTmp = path.dirname(resolved) === path.resolve(os.tmpdir())
-  if (!inTmp || !path.basename(resolved).startsWith(WORK_PREFIX) || !fs.existsSync(path.join(resolved, 'state.json'))) {
-    fail(`refusing to delete ${resolved}: not a strip-ai work dir`)
+function finalize(workRoot) {
+  const e = evaluate(workRoot)
+  const { state, ctx } = e
+  const z = state.zip
+  if (!z) fail('run "zip" first')
+  const problems = []
+  if (!fs.existsSync(z.path)) problems.push(`zip missing: ${z.path}`)
+  else if (sha256(fs.readFileSync(z.path)) !== z.sha256) problems.push('the zip changed after it was verified: run "zip" again')
+  if (z.treeFingerprint !== e.fingerprint) problems.push('files changed after the zip was built: run "zip" again')
+  if (!fs.existsSync(z.report)) problems.push(`report missing: ${z.report}`)
+  let text = fs.existsSync(z.report) ? fs.readFileSync(z.report, 'utf8') : ''
+  if (text.includes(TODO)) problems.push(`the report still has "${TODO}" sections to fill`)
+  if (!text.includes(z.sha256)) problems.push('the report does not carry the zip SHA-256: run "zip" again')
+  // The report sits next to the zip and could be shared with it: it must not leak either.
+  const leaks = [
+    ...scanText('report', text, ctx).filter((f) => !f.rule.startsWith('ai-') && f.severity !== 'fixture'),
+    ...findLeaks('report', Buffer.from(text), ctx.allValues).map((l) => ({ rule: 'known-value', value: l.masked })),
+    ...findTokens('report', Buffer.from(text), ctx.tokens).map((t) => ({ rule: 'identity-token', value: mask(t.token) })),
+  ]
+  for (const l of leaks) problems.push(`the report leaks: ${l.rule} (${l.value})`)
+  if (problems.length) fail(`not ready:\n  - ${problems.join('\n  - ')}`)
+
+  const sourceUnchanged =
+    sourceFingerprint(state) === state.sourceFingerprint &&
+    (!state.fromGit || sameFileSet(state))
+  if (!sourceUnchanged) {
+    text = text.replace(/\n## Checks/, '\n> ⚠️ The original project changed while the export ran. The zip reflects it as it was at the start.\n\n## Checks')
+    fs.writeFileSync(z.report, text)
   }
-  fs.rmSync(resolved, { recursive: true, force: true })
-  print({ deleted: resolved })
+  state.steps.finalize = now()
+  state.report = { zipSha256: z.sha256, sha256: sha256(text) }
+  saveState(workRoot, state)
+  print({ ready: true, zip: z.path, sha256: z.sha256, report: z.report, sourceUnchanged, next: `cleanup ${workRoot}` })
 }
 
-function parseFlags(args) {
-  const flags = { allowEnv: [], json: false, force: false }
+function sameFileSet(state) {
+  const { tracked, untracked } = listSourceFiles(state.source)
+  const now = new Set([...tracked, ...untracked.filter((r) => !r.split('/').slice(0, -1).some((p) => HEAVY_DIRS.has(p)))])
+  const before = new Set([...state.sourceFiles, ...state.skipped.symlinksOutside, ...state.skipped.submodules, ...state.skipped.special])
+  return [...now].every((r) => before.has(r) || state.skipped.missingInWorktree.includes(r))
+}
+
+function cleanup(workRoot, flags) {
+  if (flags.stale) {
+    const stale = staleWorkRoots(24 * 3600 * 1000)
+    for (const dir of stale) fs.rmSync(dir, { recursive: true, force: true })
+    return print({ deleted: stale })
+  }
+  if (!isWorkRoot(workRoot)) fail(`refusing to delete ${workRoot}: not a strip-ai work dir`)
+  fs.rmSync(path.resolve(workRoot), { recursive: true, force: true })
+  print({ deleted: path.resolve(workRoot) })
+}
+
+// ---------------------------------------------------------------- dispatch
+
+function parseArgs(argv) {
+  const flags = {}
   const positional = []
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]
-    if (a === '--json') flags.json = true
-    else if (a === '--force') flags.force = true
-    else if (a === '--name') flags.name = args[++i]
-    else if (a === '--out') flags.out = args[++i]
-    else if (a === '--allow-env') flags.allowEnv.push(args[++i])
+  const valued = new Set(['--name', '--out', '--reason', '--rule', '--file', '--as', '--timeout', '--none'])
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (valued.has(a)) flags[a.slice(2)] = argv[++i] ?? ''
+    else if (a === '--all') flags.all = true
+    else if (a === '--stale') flags.stale = true
     else positional.push(a)
   }
   return { flags, positional }
 }
 
 const [command, ...rest] = process.argv.slice(2)
-const { flags, positional } = parseFlags(rest)
+const { flags, positional } = parseArgs(rest)
+const [wr, ...more] = positional
 const commands = {
-  prepare: () => prepare(positional[0]),
-  'env-in': () => envIn(positional[0]),
-  strip: () => strip(positional[0]),
-  scan: () => scan(positional[0], flags),
-  redact: () => redact(positional[0]),
-  placeholder: () => placeholder(positional[0], positional[1]),
-  zip: () => zip(positional[0], flags),
-  audit: () => audit(positional[0], positional[1]),
-  cleanup: () => cleanup(positional[0]),
+  prepare: () => prepare(wr),
+  'env-in': () => envIn(wr),
+  check: () => check(wr, more[0], more.slice(1), flags),
+  strip: () => strip(wr),
+  inventory: () => inventory(wr),
+  identity: () => identityCmd(wr, more[0], more.slice(1), flags),
+  scan: () => scan(wr, flags),
+  redact: () => redact(wr),
+  placeholder: () => placeholder(wr, more[0]),
+  rename: () => rename(wr, more[0], more[1]),
+  allow: () => allow(wr, more, flags),
+  status: () => status(wr),
+  zip: () => zip(wr, flags),
+  finalize: () => finalize(wr),
+  cleanup: () => cleanup(wr, flags),
 }
 if (!commands[command]) fail(`unknown command "${command ?? ''}". Use: ${Object.keys(commands).join(', ')}`)
-commands[command]()
+try {
+  commands[command]()
+} catch (err) {
+  fail(err.message)
+}
