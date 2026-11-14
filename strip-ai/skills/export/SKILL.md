@@ -77,13 +77,21 @@ SA redact $WR
 
 This replaces high-confidence items with consistent placeholders. The same original value always becomes the same placeholder:
 - Real emails become `userN@example.com`. Fixture domains such as `example.com` and `.test` are kept.
-- Owner names in every spelling (`Maria Silva`, `MariaSilva`, `maria-silva`) become `Jane Doe` / `JaneDoe` / `jane-doe`. Handles become `example-user`. Files are renamed too (`cvMariaSilva.pdf` becomes `cvJaneDoe.pdf`).
+- Owner names in every spelling (`Maria Silva`, `MariaSilva`, `maria-silva`) become `Jane Doe` / `JaneDoe` / `jane-doe`. Handles become `example-user`, and their joined form (`the-msilva` → `themsilva`, as in a personal domain) becomes `exampleuser`. Domains of the owner's own mailboxes (not gmail and other providers) become `example.com`. Files are renamed too (`cvMariaSilva.pdf` becomes `cvJaneDoe.pdf`).
 - Home paths (`/home/maria`, `C:\Users\maria`) become `/home/user` and `C:\Users\user`.
 - CPF and CNPJ are replaced with fakes that still have valid check digits.
 - **Documents with personal data** (the owner's name in the file name or content, or a real email, CPF, CNPJ or phone in the content) get their **content replaced by a placeholder of the same type** (`.docx`, `.xlsx`, `.pdf`, `.rtf`). The file stays where it is, under its redacted name, so code that loads it still works. `redact` lists them under `replacedDocuments`.
 - Known secret formats (private keys, AWS, GitHub, Slack, Stripe, OpenAI/Anthropic, JWT, Sentry DSN, PostHog, Resend, npm, SendGrid) and remote URL passwords become `...REDACTED`.
+- **Verbatim copies**: after the pattern pass, every replaced email, ID, secret and password is also replaced wherever it appears as plain text, even where no pattern matches (a URL password that a test also hardcodes).
+- **Image metadata** (EXIF, XMP, IPTC, comments, PNG text chunks: author, camera owner, GPS) is stripped from every JPEG and PNG. Pixels are untouched. EXIF orientation goes with it, so note photos that may now display rotated. `redact` lists them under `strippedImageMetadata`.
+
+`redact` rescans its own output and prints `remainingBlocking`. Anything listed there is something it could not fix by itself. Handle it below before moving on.
 
 Then run `SA scan $WR` and handle every `block` and `review` finding by hand, using the same placeholder style:
+- **`redacted-value-left`**: a value already redacted elsewhere is still present in a form the literal pass missed (split across lines, escaped, base64). Replace it with the placeholder `redactions.json` assigned to it.
+- **`known-value-in-binary`**: the owner's identity or a redacted value inside a binary or packaged file (a `.jar` manifest, a compiled asset, a UTF-16 resource, a gzip). The `where` part names the inner file. Rebuild the binary from cleaned source if the project can. Otherwise replace the file with a neutral one of the same type, or delete it if nothing uses it.
+- **`image-metadata`**: an image whose format the script cannot strip (it only strips JPEG and PNG). Re-encode it without metadata, or replace it.
+- **`not-scanned`** (files over 50 MB): open them and decide by hand. Say so in the report under "Not verified".
 - **`env-file-with-values`**: blank real secret values. Keep obviously local defaults (`localhost`, `postgres:postgres`). Templates (`.env.example`) are fine.
 - **`document-with-pii`** and **`documentsNeedingAction`**: a personal document in a format with no builder (`.pptx`, `.odt`, `.xls`, `.db`...). Write a neutral file of the same type with the same role, for example an empty deck or a database with the schema and fake rows. Delete the document (and its references) only if nothing in the project uses it.
 - **`document`** (pdf, docx, xlsx, csv, db... where the script found no personal data, or could not read the content): open it (`.docx`/`.xlsx`/`.pptx` are zip archives you can unzip and read). If it still holds personal data the patterns missed (a CV of someone else, a customer list, real records), replace its content with `SA placeholder $WR <file>` (docx, xlsx, pdf, rtf) or a neutral file of the same type. Never delete a file that code loads. Specs or docs with no personal data stay as they are.
@@ -112,6 +120,22 @@ SA zip $WR --name <clean-project-name>
 The zip contains exactly the files the project's `.gitignore` allows, under a `<name>/` root folder, with executable bits kept. It refuses to run while AI tooling files, env files or `block` findings remain:
 - For an env file you reviewed and blanked: add `--allow-env <path>`.
 - For a `block` finding you verified is a false positive: use `--force` and list each one in the report.
+
+Before writing, `zip` runs a byte-level check of every entry (inside nested zips, gzip and PDF streams, in UTF-8 and UTF-16) for the owner's identity and every redacted original. It refuses if any survives. `--force` also skips this check and lists what it skipped under `forcedPastLeaks`, which the report must show.
+
+## 7b. Independent audit
+
+The pattern rules and the zip check work from the same list of spellings, so they share blind spots. The audit searches for each **piece** of the identity on its own (first name, surname, handle parts, the joined handle, domain labels, email local parts):
+
+```
+SA audit $WR <zip path>
+```
+
+For every hit, open the file in the work dir and decide:
+- **A leak**: for example the surname inside a personal domain or bucket name, or a first name in a greeting. Fix it in the work dir with a placeholder consistent with the others, then go back to step 7 (rescan, zip, audit).
+- **Unrelated**: a common word or someone else with the same surname. Leave it and list it under "Kept on purpose" with a masked value.
+
+Repeat until every hit is decided.
 
 ## 8. Report
 
@@ -142,10 +166,13 @@ Files renamed. Documents replaced by placeholders (file and reason). Files delet
 One row per test that broke because of redaction or cleaning. If none: "None."
 
 ## Kept on purpose
-AI product integrations, false positives left in place, findings forced past with --force (with reason).
+AI product integrations, false positives left in place, findings and leaks forced past with --force (with reason), audit hits judged unrelated.
+
+## Image metadata stripped
+Files, and what was removed. Note photos that may now display rotated.
 
 ## Not verified
-Suites skipped and why (services unavailable, e2e too slow).
+Suites skipped and why (services unavailable, e2e too slow). Files over the scan limit and how they were checked.
 ```
 
 ## 9. Clean up

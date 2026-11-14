@@ -26,10 +26,13 @@ The original project is never modified. Everything happens in a temp copy.
    - CPF and CNPJ get fakes with valid check digits.
    - API keys, tokens, private keys and remote DB passwords become `REDACTED`.
    - Documents with personal data (a CV, a customer spreadsheet) keep their name and type, but their content is replaced by a placeholder. Code that loads them still works. Placeholders can be generated for `.docx`, `.xlsx`, `.pdf` and `.rtf`. Other formats are flagged so Claude writes a neutral file of the same type.
+   - EXIF, XMP and text metadata (author, GPS) are stripped from JPEG and PNG.
+   - Any value redacted somewhere is also replaced wherever it appears verbatim.
 6. **Re-runs the checks.** Any new failure is fixed in the test data, never by skipping a test, and recorded in the report's "Tests coupled to PII" table.
-7. **Zips.** The script refuses to zip while AI files, env files with values or high-confidence PII remain.
+7. **Zips**, then proves the result. The script refuses to zip while AI files, env files with values, high-confidence PII, or any known sensitive value remains. That last check searches the raw bytes of every file, including inside docx/jar, gzip and PDF streams, and in UTF-16.
+8. **Audits the zip** independently. Each piece of the owner's identity (first name, surname, handle parts, domain labels) is searched on its own, to catch spellings the redaction rules did not know.
 
-The deterministic steps live in `skills/export/scripts/strip-ai.mjs`: plain Node, no dependencies, the same on Windows, macOS and Linux. Claude does the judgment steps (4, the review half of 5, and 6).
+The deterministic steps live in `skills/export/scripts/strip-ai.mjs`: plain Node, no dependencies, the same on Windows, macOS and Linux. Claude does the judgment steps (4, the review half of 5, 6 and the audit decisions in 8).
 
 ## Install
 
@@ -78,10 +81,13 @@ To use the script without Claude, run the deterministic steps by hand:
 node strip-ai/skills/export/scripts/strip-ai.mjs prepare ../some-project
 ```
 
-It prints a `workRoot`. Then run `strip`, `scan`, `redact`, `zip` and `cleanup` with that `workRoot`.
+It prints a `workRoot`. Then run `strip`, `scan`, `redact`, `zip`, `audit` and `cleanup` with that `workRoot`.
 
 ## Limits
 
 - Names are found from git metadata (commit authors, `git config`, remote owner), the OS user and `package.json`. Other people's names in comments or seeds rely on Claude's review in step 5, not on a pattern.
-- Text files over 2 MB and binary files other than documents are not scanned. PDF text extraction is best effort: fonts with custom encodings can hide text from the script, so documents with no detected data are still flagged for Claude to review.
+- Every file is checked: text by patterns, documents as a whole, JPEG/PNG for metadata, and every other binary by a byte-level search for known values. Only files over 50 MB are skipped, and they are reported as `not-scanned`.
+- The byte-level search finds known values only, not unknown PII inside a binary. A compiled asset with a stranger's name in it gets through unless Claude's review catches it.
+- PDF text extraction is best effort: fonts with custom encodings can hide text from the script, so documents with no detected data are still flagged for Claude to review.
+- Image metadata is stripped from JPEG and PNG only. WebP, HEIC, TIFF and GIF metadata is searched for known values but not stripped.
 - Archives are plain ZIP (no ZIP64): up to 65,534 files and 4 GB.

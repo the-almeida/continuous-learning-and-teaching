@@ -11,9 +11,11 @@ import {
 import { identityPatterns } from './identity.mjs'
 import { readText } from './scan.mjs'
 import { documentText, isDocument, isPlaceholder, personalDataReasons, placeholderFor } from './documents.mjs'
+import { stripImageMetadata } from './images.mjs'
 
 export function createRedactor(identity) {
   const ledger = new Map() // `${category}\0${original}` -> { category, placeholder, files:Set, count }
+  const raw = new Map() // same key -> { category, original, placeholder }, unmasked, never reported
   const counters = { email: 0, cpf: 0, cnpj: 0 }
   const identityRules = identityPatterns(identity)
 
@@ -23,6 +25,7 @@ export function createRedactor(identity) {
     if (!entry) {
       entry = { category, original: mask(original), placeholder, files: new Set(), count: 0 }
       ledger.set(key, entry)
+      raw.set(key, { category, original, placeholder })
     }
     entry.files.add(file)
     entry.count++
@@ -59,26 +62,59 @@ export function createRedactor(identity) {
     return out
   }
 
-  function summary() {
-    return [...ledger.values()].map((e) => ({ ...e, files: [...e.files].sort() }))
+  /** The redacted spelling of a path, without recording anything. */
+  function cleanPath(rel) {
+    let out = rel
+    for (const rule of identityRules) out = out.replace(rule.re, (m) => rule.replace(m))
+    return out
   }
 
-  return { redactText, redactName, summary }
+  // File lists are recorded under each file's original path, which can itself carry the identity.
+  function summary() {
+    return [...ledger.values()].map((e) => ({ ...e, files: [...new Set([...e.files].map(cleanPath))].sort() }))
+  }
+
+  function originals() {
+    return [...raw.values()]
+  }
+
+  return { redactText, redactName, cleanPath, summary, originals, recordLiteral: record }
 }
 
-/** Redacts every text file in place and renames files whose names carry the owner's identity. */
+// Categories whose raw originals are also replaced wherever they appear
+// verbatim, even where no pattern matches (a password from a URL that is
+// also hardcoded in a test). Identity and home paths have their own rules.
+const LITERAL_CATEGORIES = new Set(['email', 'cpf', 'cnpj', 'url-credentials', ...SECRET_RULES.map((r) => r.id)])
+const MIN_LITERAL_LENGTH = 6
+
+function readBinary(abs) {
+  const buf = fs.readFileSync(abs)
+  return buf.subarray(0, 8192).includes(0) ? buf : null
+}
+
+/**
+ * Redacts every file in place, then proves the result:
+ * 1. binary documents with personal data get a same-type placeholder;
+ * 2. JPEG/PNG metadata is stripped;
+ * 3. text is redacted by pattern, and files are renamed;
+ * 4. a second pass replaces verbatim copies of every redacted original.
+ * `rawOriginals` holds unmasked values; callers keep it out of reports.
+ */
 export function redactTree(workDir, files, identity) {
   const redactor = createRedactor(identity)
-  const changedFiles = []
+  const changedFiles = new Set()
   const renamed = []
   const replacedDocuments = []
   const documentsNeedingAction = []
+  const strippedMetadata = []
+  const finalFiles = []
+
   for (const rel of files) {
     const abs = path.join(workDir, ...rel.split('/'))
     let replacedReasons = null
-    if (isDocument(rel)) {
-      const buf = fs.readFileSync(abs)
-      const reasons = isPlaceholder(rel, buf) ? [] : personalDataReasons(rel, documentText(rel, buf), identity)
+    const binary = readBinary(abs)
+    if (binary && isDocument(rel)) {
+      const reasons = isPlaceholder(rel, binary) ? [] : personalDataReasons(rel, documentText(rel, binary), identity)
       if (reasons.length) {
         const placeholder = placeholderFor(rel)
         if (placeholder) {
@@ -87,25 +123,66 @@ export function redactTree(workDir, files, identity) {
         } else documentsNeedingAction.push({ file: rel, reasons })
       }
     }
+    if (binary) {
+      const stripped = stripImageMetadata(binary)
+      if (stripped?.removed.length) {
+        fs.writeFileSync(abs, stripped.data)
+        strippedMetadata.push({ file: rel, removed: stripped.removed })
+      }
+    }
     const text = readText(abs)
     if (text !== null) {
       const next = redactor.redactText(text, rel)
       if (next !== text) {
         fs.writeFileSync(abs, next)
-        changedFiles.push(rel)
+        changedFiles.add(rel)
       }
     }
-    const parts = rel.split('/')
-    const newParts = parts.map((p) => redactor.redactName(p, rel))
-    const newRel = newParts.join('/')
+    const newRel = rel.split('/').map((p) => redactor.redactName(p, rel)).join('/')
     if (newRel !== rel) {
-      const dest = path.join(workDir, ...newParts)
+      const dest = path.join(workDir, ...newRel.split('/'))
       fs.mkdirSync(path.dirname(dest), { recursive: true })
       fs.renameSync(abs, dest)
       renamed.push({ from: mask(rel), to: newRel })
+      if (changedFiles.delete(rel)) changedFiles.add(newRel)
+      for (const s of strippedMetadata) if (s.file === rel) s.file = newRel
     }
     if (replacedReasons) replacedDocuments.push({ file: newRel, reasons: replacedReasons })
+    finalFiles.push(newRel)
   }
-  for (const d of documentsNeedingAction) d.file = redactor.redactName(d.file, d.file)
-  return { changedFiles, renamed, replacedDocuments, documentsNeedingAction, redactions: redactor.summary() }
+
+  const literals = redactor
+    .originals()
+    .filter((o) => LITERAL_CATEGORIES.has(o.category) && o.original.length >= MIN_LITERAL_LENGTH)
+    .sort((a, b) => b.original.length - a.original.length)
+  if (literals.length) {
+    const re = new RegExp(literals.map((o) => o.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi')
+    const byValue = new Map(literals.map((o) => [o.original.toLowerCase(), o]))
+    for (const rel of finalFiles) {
+      const abs = path.join(workDir, ...rel.split('/'))
+      const text = readText(abs)
+      if (text === null) continue
+      const next = text.replace(re, (m) => {
+        const o = byValue.get(m.toLowerCase())
+        return redactor.recordLiteral(o.category, m, o.placeholder, rel)
+      })
+      if (next !== text) {
+        fs.writeFileSync(abs, next)
+        changedFiles.add(rel)
+      }
+    }
+  }
+
+  for (const d of documentsNeedingAction) d.file = redactor.cleanPath(d.file)
+  return {
+    changedFiles: [...changedFiles].sort(),
+    renamed,
+    replacedDocuments,
+    documentsNeedingAction,
+    strippedMetadata,
+    redactions: redactor.summary(),
+    // Only values replaced as literals: a home-path user name or a name token
+    // searched as a bare substring would also hit unrelated words.
+    rawOriginals: redactor.originals().filter((o) => LITERAL_CATEGORIES.has(o.category)).map((o) => o.original),
+  }
 }

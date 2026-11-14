@@ -10,15 +10,20 @@ import {
 } from './rules.mjs'
 import { identityPatterns } from './identity.mjs'
 import { documentText, isDocument, isPlaceholder, personalDataReasons } from './documents.mjs'
+import { stripImageMetadata } from './images.mjs'
+import { canaries, findLeaks } from './leaks.mjs'
 
-const MAX_TEXT_BYTES = 2 * 1024 * 1024
+export const MAX_SCAN_BYTES = 50 * 1024 * 1024
 
+function isBinary(buf) {
+  return buf.subarray(0, 8192).includes(0)
+}
+
+/** Text content, or null for binary files and files too large to scan. */
 export function readText(absPath) {
-  const stat = fs.statSync(absPath)
-  if (stat.size > MAX_TEXT_BYTES) return null
+  if (fs.statSync(absPath).size > MAX_SCAN_BYTES) return null
   const buf = fs.readFileSync(absPath)
-  if (buf.subarray(0, 8192).includes(0)) return null
-  return buf.toString('utf8')
+  return isBinary(buf) ? null : buf.toString('utf8')
 }
 
 function lineIndex(text) {
@@ -124,13 +129,49 @@ export function scanPath(relPath, identity) {
   return findings
 }
 
-export function scanTree(workDir, files, identity, aiNames = []) {
+/**
+ * Every file ends up in exactly one bucket, so nothing is skipped silently:
+ * text (pattern rules), document (judged as a whole), image (metadata),
+ * other binary (byte-level search for known values), or too large (reported).
+ * `originals` are the raw values an earlier redact replaced; any copy of one
+ * that is still present, in any file type, blocks.
+ */
+export function scanTree(workDir, files, identity, aiNames = [], originals = []) {
   const findings = []
+  const allValues = canaries(identity, originals)
+  const originalValues = canaries({ names: [], emails: [], handles: [] }, originals)
   for (const rel of files) {
+    const abs = path.join(workDir, ...rel.split('/'))
     findings.push(...scanPath(rel, identity))
-    if (isDocument(rel)) findings.push(...scanDocument(rel, fs.readFileSync(path.join(workDir, ...rel.split('/'))), identity))
-    const text = readText(path.join(workDir, ...rel.split('/')))
-    if (text !== null) findings.push(...scanText(rel, text, identity, aiNames))
+    const size = fs.statSync(abs).size
+    if (size > MAX_SCAN_BYTES) {
+      findings.push({ file: rel, line: 0, rule: 'not-scanned', severity: 'review', value: `${Math.round(size / 1048576)} MB, over the scan limit` })
+      continue
+    }
+    const buf = fs.readFileSync(abs)
+    if (!isBinary(buf)) {
+      const text = buf.toString('utf8')
+      findings.push(...scanText(rel, text, identity, aiNames))
+      for (const leak of findLeaks(rel, buf, originalValues)) {
+        findings.push({ file: rel, line: 0, rule: 'redacted-value-left', severity: 'block', value: leak.value })
+      }
+      if (isDocument(rel)) {
+        // Text data files (csv, tsv, vcf) were pattern-scanned above; names in rows need a look the rules cannot give.
+        findings.push({ file: rel, line: 0, rule: 'document', severity: 'review', value: 'text data file: check rows for personal data' })
+      }
+      continue
+    }
+    const docFindings = isDocument(rel) ? scanDocument(rel, buf, identity) : []
+    findings.push(...docFindings)
+    const metadata = stripImageMetadata(buf)
+    if (metadata?.removed.length) {
+      findings.push({ file: rel, line: 0, rule: 'image-metadata', severity: 'block', value: metadata.removed.join(', ') })
+    }
+    if (!docFindings.some((f) => f.severity === 'block')) {
+      for (const leak of findLeaks(rel, buf, allValues)) {
+        findings.push({ file: rel, line: 0, rule: 'known-value-in-binary', severity: 'block', value: `${leak.value} in ${leak.where}` })
+      }
+    }
   }
   return findings
 }

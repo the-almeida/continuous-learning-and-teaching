@@ -146,7 +146,7 @@ export function isValidCnpj(value) {
   return true
 }
 
-const FAKE_CPF_PREFIX = '123456'
+const FAKE_CPF_PREFIX = '12345'
 const FAKE_CNPJ_PREFIX = '1122'
 
 /**
@@ -163,8 +163,18 @@ export function isRealCnpj(value) {
 }
 
 /** Builds a valid, formatted fake CPF from a counter so validation tests keep passing. */
+const MAX_FAKES = 9999
+
+function checkFakeCounter(n, kind) {
+  if (!Number.isInteger(n) || n < 1 || n > MAX_FAKES) {
+    // Wrapping around would map two different real values to one fake.
+    throw new Error(`Cannot generate fake ${kind} #${n}: only ${MAX_FAKES} distinct fakes exist`)
+  }
+}
+
 export function fakeCpf(n) {
-  const base = (FAKE_CPF_PREFIX + String(n % 1000).padStart(3, '0')).split('').map(Number)
+  checkFakeCounter(n, 'CPF')
+  const base = (FAKE_CPF_PREFIX + String(n).padStart(4, '0')).split('').map(Number)
   for (const len of [9, 10]) {
     let sum = 0
     for (let i = 0; i < len; i++) sum += base[i] * (len + 1 - i)
@@ -175,7 +185,8 @@ export function fakeCpf(n) {
 }
 
 export function fakeCnpj(n) {
-  const base = (FAKE_CNPJ_PREFIX + String(n % 10000).padStart(4, '0') + '0001').split('').map(Number)
+  checkFakeCounter(n, 'CNPJ')
+  const base = (FAKE_CNPJ_PREFIX + String(n).padStart(4, '0') + '0001').split('').map(Number)
   const weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
   for (const len of [12, 13]) {
     let sum = 0

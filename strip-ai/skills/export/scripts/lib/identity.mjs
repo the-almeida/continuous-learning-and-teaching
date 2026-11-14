@@ -7,6 +7,21 @@ import path from 'node:path'
 import { tryGit } from './git.mjs'
 import { GENERIC_USERS } from './rules.mjs'
 
+// Mailbox providers: their domains say nothing about who the owner is.
+const PUBLIC_MAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'yahoo.com',
+  'yahoo.com.br', 'icloud.com', 'me.com', 'mac.com', 'proton.me', 'protonmail.com', 'pm.me', 'aol.com',
+  'gmx.com', 'gmx.net', 'yandex.com', 'zoho.com', 'hey.com', 'fastmail.com', 'uol.com.br', 'bol.com.br',
+  'terra.com.br', 'ig.com.br', 'users.noreply.github.com',
+])
+
+/** Domains of the owner's own mailboxes, as in me@maria-silva.dev. Public providers are skipped. */
+export function personalDomains(emails) {
+  return [...new Set(emails.map((e) => e.slice(e.lastIndexOf('@') + 1).toLowerCase()))].filter(
+    (d) => d.includes('.') && !PUBLIC_MAIL_DOMAINS.has(d) && !d.endsWith('.local'),
+  )
+}
+
 const BOT_PATTERN = /bot\b|\[bot\]|dependabot|renovate|github-actions|actions@github|claude|copilot|anthropic|openai|cursor|gpt|gemini|codex/i
 
 export function collectIdentities(sourceDir) {
@@ -57,7 +72,7 @@ export function collectIdentities(sourceDir) {
   }
 
   for (const h of [...handles]) if (h.length < 3 || GENERIC_USERS.has(h.toLowerCase())) handles.delete(h)
-  return { names: [...names], emails: [...emails], handles: [...handles] }
+  return { names: [...names], emails: [...emails], handles: [...handles], domains: personalDomains([...emails]) }
 }
 
 const PLACEHOLDER_NAMES = [
@@ -99,7 +114,14 @@ export function identityPatterns(identity) {
       add(tokens.join('_'), `${first}_${last}`, false)
     }
   })
-  identity.handles.forEach((handle, i) => add(handle, i === 0 ? 'example-user' : `example-user-${i + 1}`, false))
+  identity.handles.forEach((handle, i) => {
+    const suffix = i === 0 ? '' : `-${i + 1}`
+    add(handle, `example-user${suffix}`, false)
+    // the-almeida also shows up as thealmeida (a personal domain, an email local part, a bucket name).
+    const joined = handle.replace(/[-_.]/g, '')
+    if (joined !== handle && joined.length >= 6) add(joined, `exampleuser${suffix.replace('-', '')}`, joined.length >= 10)
+  })
+  for (const domain of identity.domains ?? []) add(domain, 'example.com', false)
   // Longest literals first, so a full name wins over a handle it contains.
   return patterns.sort((a, b) => b.literal.length - a.literal.length)
 }

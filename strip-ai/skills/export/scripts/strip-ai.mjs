@@ -9,6 +9,7 @@
 //   redact  <workRoot>           replace high-confidence PII and secrets, and documents with personal data
 //   placeholder <workRoot> <file>  replace one document's content with a placeholder of the same type
 //   zip     <workRoot> [--name n] [--out file] [--allow-env path]... [--force]
+//   audit   <workRoot> <zip>     independent check of the final zip for any piece of the owner's identity
 //   cleanup <workRoot>           delete the work dir
 //
 // The original project is never written to.
@@ -20,6 +21,7 @@ import { collectIdentities } from './lib/identity.mjs'
 import { redactTree } from './lib/redact.mjs'
 import { aiPathToRemove, isEnvFile } from './lib/rules.mjs'
 import { scanTree } from './lib/scan.mjs'
+import { canaries, findLeaks, identityTokens } from './lib/leaks.mjs'
 import { readZip, writeZip } from './lib/zip.mjs'
 import { PLACEHOLDER_FORMATS, placeholderFor } from './lib/documents.mjs'
 
@@ -50,6 +52,22 @@ function loadState(workRoot) {
 
 function loadIdentity(workRoot) {
   return JSON.parse(fs.readFileSync(path.join(workRoot, 'identity.json'), 'utf8'))
+}
+
+// Raw values that redaction replaced. Like identity.json it lives only in the
+// temp work root (deleted by cleanup) and never goes into output or reports.
+function loadOriginals(workRoot) {
+  const file = path.join(workRoot, 'originals.json')
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []
+}
+
+function saveOriginals(workRoot, values) {
+  const merged = [...new Set([...loadOriginals(workRoot), ...values])]
+  fs.writeFileSync(path.join(workRoot, 'originals.json'), JSON.stringify(merged))
+}
+
+function scanWork(workRoot, state, files = exportFiles(state.workDir)) {
+  return scanTree(state.workDir, files, loadIdentity(workRoot), state.aiNames, loadOriginals(workRoot))
 }
 
 function walk(dir, base = dir, out = []) {
@@ -163,7 +181,7 @@ function summarize(findings) {
 
 function scan(workRoot, flags) {
   const state = loadState(workRoot)
-  const findings = scanTree(state.workDir, exportFiles(state.workDir), loadIdentity(workRoot), state.aiNames)
+  const findings = scanWork(workRoot, state)
   fs.writeFileSync(path.join(workRoot, 'findings.json'), JSON.stringify(findings, null, 2))
   if (flags.json) return print(findings)
   console.log(JSON.stringify({ counts: summarize(findings), full: path.join(workRoot, 'findings.json') }, null, 2))
@@ -182,8 +200,11 @@ function scan(workRoot, flags) {
 
 function redact(workRoot) {
   const state = loadState(workRoot)
-  const result = redactTree(state.workDir, exportFiles(state.workDir), loadIdentity(workRoot))
+  const { rawOriginals, ...result } = redactTree(state.workDir, exportFiles(state.workDir), loadIdentity(workRoot))
+  saveOriginals(workRoot, rawOriginals)
   fs.writeFileSync(path.join(workRoot, 'redactions.json'), JSON.stringify(result, null, 2))
+  // Self-check: whatever redaction could not fix is listed now, not discovered at zip time.
+  const remaining = scanWork(workRoot, state).filter((f) => f.severity === 'block')
   print({
     filesChanged: result.changedFiles.length,
     renamed: result.renamed,
@@ -192,7 +213,9 @@ function redact(workRoot) {
       ...d,
       action: `no ${path.extname(d.file)} placeholder builder (supported: ${PLACEHOLDER_FORMATS.join(', ')}): delete it or write a neutral file of the same type`,
     })),
+    strippedImageMetadata: result.strippedMetadata,
     redactions: result.redactions.map((r) => `${r.category}: ${r.original} -> ${r.placeholder} (${r.count}x in ${r.files.length} file(s))`),
+    remainingBlocking: remaining.map((f) => `${f.rule} at ${f.file}:${f.line} (${f.value})`),
     full: path.join(workRoot, 'redactions.json'),
   })
 }
@@ -208,7 +231,7 @@ function zip(workRoot, flags) {
       problems.push(`env file would be included: ${rel} (blank its secrets, then pass --allow-env ${rel}, or delete it)`)
     }
   }
-  const blocking = scanTree(state.workDir, files, loadIdentity(workRoot)).filter((f) => f.severity === 'block')
+  const blocking = scanWork(workRoot, state, files).filter((f) => f.severity === 'block')
   if (blocking.length && !flags.force) {
     for (const f of blocking.slice(0, 50)) problems.push(`${f.rule} at ${f.file}:${f.line} (${f.value})`)
     if (blocking.length > 50) problems.push(`... ${blocking.length - 50} more blocking findings`)
@@ -225,6 +248,13 @@ function zip(workRoot, flags) {
     const exec = executables.has(rel) || (process.platform !== 'win32' && stat.mode & 0o111)
     return { name: `${rootName}/${rel}`, data: fs.readFileSync(abs), mode: exec ? 0o755 : 0o644, mtime: stat.mtime }
   })
+  // Byte-level proof, independent of the pattern rules: no known sensitive
+  // value survives in any entry, including inside docx/xlsx/jar, gzip and PDF streams.
+  const values = canaries(loadIdentity(workRoot), loadOriginals(workRoot))
+  const leaks = entries.flatMap((e) => findLeaks(e.name, e.data, values))
+  if (leaks.length && !flags.force) {
+    fail(`refusing to zip, known sensitive values found:\n  - ${leaks.slice(0, 50).map((l) => `${l.value} in ${l.where}`).join('\n  - ')}`)
+  }
   writeZip(out, entries)
   const check = readZip(out)
   if (check.length !== entries.length) fail(`zip verification failed: wrote ${entries.length}, read ${check.length}`)
@@ -234,6 +264,7 @@ function zip(workRoot, flags) {
     files: entries.length,
     bytes: fs.statSync(out).size,
     forcedPastFindings: flags.force ? blocking.length : 0,
+    forcedPastLeaks: flags.force ? leaks.map((l) => `${l.value} in ${l.where}`) : [],
   })
 }
 
@@ -245,6 +276,25 @@ function placeholder(workRoot, rel) {
   if (!data) fail(`no placeholder builder for ${path.extname(rel)} (supported: ${PLACEHOLDER_FORMATS.join(', ')})`)
   fs.writeFileSync(abs, data)
   print({ replaced: rel, bytes: data.length })
+}
+
+function audit(workRoot, zipPath) {
+  if (!zipPath || !fs.existsSync(zipPath)) fail(`no zip at ${zipPath}`)
+  const tokens = identityTokens(loadIdentity(workRoot))
+  const hits = {}
+  for (const entry of readZip(zipPath)) {
+    for (const leak of findLeaks(entry.name, entry.data, tokens)) {
+      ;(hits[leak.value] ??= []).push(leak.where)
+    }
+    for (const t of tokens) if (entry.name.toLowerCase().includes(t)) (hits[`${t[0]}***`] ??= []).push(`${entry.name} (path)`)
+  }
+  print({
+    tokensChecked: tokens.length,
+    hits: Object.entries(hits).map(([token, where]) => ({ token, files: where.length, where: where.slice(0, 20) })),
+    note: Object.keys(hits).length
+      ? 'Open each file and decide: a leak (fix it in the work dir and zip again) or an unrelated word (note it in the report).'
+      : 'No piece of the identity found.',
+  })
 }
 
 function cleanup(workRoot) {
@@ -282,6 +332,7 @@ const commands = {
   redact: () => redact(positional[0]),
   placeholder: () => placeholder(positional[0], positional[1]),
   zip: () => zip(positional[0], flags),
+  audit: () => audit(positional[0], positional[1]),
   cleanup: () => cleanup(positional[0]),
 }
 if (!commands[command]) fail(`unknown command "${command ?? ''}". Use: ${Object.keys(commands).join(', ')}`)

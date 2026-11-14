@@ -21,4 +21,4 @@ jobs:
       - uses: actions/setup-node@v6.3.0
         with:
           node-version: "lts/jod"
-      - run: node --test strip-ai/test/rules.test.mjs strip-ai/test/cli.test.mjs
+      - run: node --test strip-ai/test/rules.test.mjs strip-ai/test/cli.test.mjs strip-ai/test/documents.test.mjs strip-ai/test/hardening.test.mjs
