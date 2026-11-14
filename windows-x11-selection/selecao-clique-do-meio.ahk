@@ -153,13 +153,14 @@ TEMPO_NO_HISTORICO_MS := 700
 
 global restauracaoPendente := false
 global originalPendente := ""
-global textoPendente := ""
+global seqPendente := 0
 
 CopiarSelecao(exe) {
-    global bufferSelecao, restauracaoPendente, originalPendente, textoPendente
+    global bufferSelecao, restauracaoPendente, originalPendente, seqPendente
     ; Se uma seleção anterior ainda está esperando para devolver o seu Ctrl+C,
-    ; o "original" continua sendo aquele, não a seleção anterior.
-    salvo := restauracaoPendente ? originalPendente : ClipboardAll()
+    ; o "original" continua sendo aquele, não a seleção anterior. Mas se você
+    ; copiou algo nesse meio-tempo, o original passa a ser a sua cópia.
+    salvo := RestauracaoAindaValida() ? originalPendente : ClipboardAll()
     A_Clipboard := ""
     ; Nunca Ctrl+C em terminais (nem nos embutidos): sem seleção ativa ele
     ; interrompe o processo rodando. Ctrl+Insert é seguro.
@@ -176,7 +177,7 @@ CopiarSelecao(exe) {
         bufferSelecao := A_Clipboard
         restauracaoPendente := true
         originalPendente := salvo
-        textoPendente := bufferSelecao
+        seqPendente := SeqClipboard()
         SetTimer(RestaurarOriginal, -TEMPO_NO_HISTORICO_MS)
     } else {
         A_Clipboard := salvo
@@ -186,15 +187,25 @@ CopiarSelecao(exe) {
 }
 
 RestaurarOriginal() {
-    global restauracaoPendente, originalPendente, textoPendente
-    ; Só devolve se ninguém copiou outra coisa nesse meio-tempo (ex.: você
-    ; deu Ctrl+C logo depois de selecionar). '==' compara exatamente.
-    if (A_Clipboard == textoPendente)
+    global restauracaoPendente, originalPendente
+    ; Só devolve se ninguém escreveu na área de transferência nesse
+    ; meio-tempo (ex.: você deu Ctrl+C logo depois de selecionar). Comparar
+    ; o texto não serve: o seu Ctrl+C da mesma seleção gera o MESMO texto e
+    ; seria descartado. O número de sequência muda a cada escrita.
+    valida := RestauracaoAindaValida()
+    Depurar("restaurar valida=" valida)
+    if valida
         A_Clipboard := originalPendente
     restauracaoPendente := false
     originalPendente := ""
-    textoPendente := ""
 }
+
+RestauracaoAindaValida() {
+    global restauracaoPendente, seqPendente
+    return restauracaoPendente && SeqClipboard() = seqPendente
+}
+
+SeqClipboard() => DllCall("GetClipboardSequenceNumber", "UInt")
 
 ; --- Clique do meio cola -----------------------------------------------------
 
@@ -237,7 +248,18 @@ MButton:: {
 }
 
 ColarBuffer(teclas) {
-    salvo := ClipboardAll()
+    global restauracaoPendente, originalPendente
+    ; Com uma restauração pendente, o que está na área de transferência é a
+    ; seleção, não o seu Ctrl+C. Cancela o timer (senão ele dispara durante o
+    ; Sleep abaixo e a seleção volta por cima do seu Ctrl+C) e devolve o
+    ; original de verdade no fim.
+    if RestauracaoAindaValida() {
+        SetTimer(RestaurarOriginal, 0)
+        salvo := originalPendente
+    } else
+        salvo := ClipboardAll()
+    restauracaoPendente := false
+    originalPendente := ""
     A_Clipboard := bufferSelecao
     ClipWait(0.4)
     Send teclas
