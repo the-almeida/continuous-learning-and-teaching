@@ -61,7 +61,8 @@ export const AI_TEXT_RULES = [
   { id: 'ai-openai', re: /openai/gi },
   { id: 'ai-gpt', re: new RegExp(`${B}(chat-?gpt|gpt-?(3(\\.5)?|4(\\.1|o)?|5))${E}`, 'gi') },
   { id: 'ai-copilot', re: /copilot/gi },
-  { id: 'ai-cursor', re: new RegExp(`${B}Cursor${E}|(?<![A-Za-z0-9_)\\]])\\.cursor(?:\\/|rules)`, 'g') },
+  // "Cursor" is also a common identifier (AutoHotkey's A_Cursor, mouse_Cursor): underscores count as part of a word here.
+  { id: 'ai-cursor', re: new RegExp(`(?<![A-Za-z0-9_])Cursor(?![A-Za-z0-9_])|(?<![A-Za-z0-9_)\\]])\\.cursor(?:\\/|rules)`, 'g') },
   { id: 'ai-gemini', re: new RegExp(`${B}gemini${E}`, 'gi') },
   { id: 'ai-llm', re: new RegExp(`${B}llms?${E}`, 'gi') },
   { id: 'ai-agentic', re: /agentic/gi },

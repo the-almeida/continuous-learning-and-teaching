@@ -40,6 +40,8 @@ test('AI references are found in English, Portuguese and Spanish', () => {
 
 test('CSS cursors, database cursors and words containing AI letters are not AI references', () => {
   assert.deepEqual(aiHits('.btn { cursor: pointer }\nconst cursor = db.cursor()\nMariana tem uma ideia. Email: aim@x.io'), [])
+  assert.deepEqual(aiHits('ehTexto := A_Cursor = "IBeam"\nset_Cursor(Mouse_Cursor)'), [], "AutoHotkey's A_Cursor is the mouse cursor")
+  assert.deepEqual(aiHits('"Cursor.exe", the Cursor IDE, (Cursor)').map(([id]) => id), ['ai-cursor', 'ai-cursor', 'ai-cursor'])
 })
 
 test('emails are classified as fixture, service or real', () => {

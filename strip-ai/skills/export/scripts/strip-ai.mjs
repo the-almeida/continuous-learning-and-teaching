@@ -155,10 +155,11 @@ function prepare(projectArg, flags) {
       ...(state.shallow ? ['shallow clone: authors of older commits are unknown. Add them with "identity add".'] : []),
       ...(state.fromGit ? [] : ['not a git repo: no identities were collected. Add them with "identity add".']),
     ],
-    next:
+    next: `languages ${workRoot}: show the list to the user and ask which languages to keep. Then ${
       identity.mode === 'third-party'
-        ? 'third-party code: ask the user before running anything. If they approve, run installs and checks with "check ... --approved <reason>"; if not, "check <WR> baseline --none <reason>"'
-        : `env-in ${workRoot}, install dependencies in ${state.workDir}, then "check ${workRoot} baseline <command>" for each check`,
+        ? 'ask before running any of its code: with approval, installs and checks take --approved <reason>; without, "check <WR> baseline --none <reason>"'
+        : `env-in ${workRoot}, install dependencies in ${state.workDir}, and "check ${workRoot} baseline <command>" for each check`
+    }`,
   })
 }
 
@@ -348,7 +349,7 @@ function identityCmd(workRoot, sub, args, flags) {
   } else if (sub === 'confirm') {
     state.steps.identity = { version: identity.version, at: now() }
     saveState(workRoot, state)
-    return print({ confirmed: identity.version, next: `scan ${workRoot}, clean AI references, then redact ${workRoot}` })
+    return print({ confirmed: identity.version, next: `redact ${workRoot}, then scan ${workRoot} and fix or decide every finding` })
   } else fail(`unknown identity command "${sub}"`)
   identity.version++
   saveIdentity(workRoot, identity)
