@@ -80,11 +80,13 @@ This replaces high-confidence items with consistent placeholders. The same origi
 - Owner names in every spelling (`Maria Silva`, `MariaSilva`, `maria-silva`) become `Jane Doe` / `JaneDoe` / `jane-doe`. Handles become `example-user`. Files are renamed too (`cvMariaSilva.pdf` becomes `cvJaneDoe.pdf`).
 - Home paths (`/home/maria`, `C:\Users\maria`) become `/home/user` and `C:\Users\user`.
 - CPF and CNPJ are replaced with fakes that still have valid check digits.
+- **Documents with personal data** (the owner's name in the file name or content, or a real email, CPF, CNPJ or phone in the content) get their **content replaced by a placeholder of the same type** (`.docx`, `.xlsx`, `.pdf`, `.rtf`). The file stays where it is, under its redacted name, so code that loads it still works. `redact` lists them under `replacedDocuments`.
 - Known secret formats (private keys, AWS, GitHub, Slack, Stripe, OpenAI/Anthropic, JWT, Sentry DSN, PostHog, Resend, npm, SendGrid) and remote URL passwords become `...REDACTED`.
 
 Then run `SA scan $WR` and handle every `block` and `review` finding by hand, using the same placeholder style:
 - **`env-file-with-values`**: blank real secret values. Keep obviously local defaults (`localhost`, `postgres:postgres`). Templates (`.env.example`) are fine.
-- **`document`** (pdf, docx, xlsx, csv, db...): open it (`.docx`/`.xlsx`/`.pptx` are zip archives you can unzip and read). If it has personal data (a CV, a customer list, real records), delete it and its references. If code needs the file, replace it with a neutral placeholder of the same type. Specs or docs with no personal data stay.
+- **`document-with-pii`** and **`documentsNeedingAction`**: a personal document in a format with no builder (`.pptx`, `.odt`, `.xls`, `.db`...). Write a neutral file of the same type with the same role, for example an empty deck or a database with the schema and fake rows. Delete the document (and its references) only if nothing in the project uses it.
+- **`document`** (pdf, docx, xlsx, csv, db... where the script found no personal data, or could not read the content): open it (`.docx`/`.xlsx`/`.pptx` are zip archives you can unzip and read). If it still holds personal data the patterns missed (a CV of someone else, a customer list, real records), replace its content with `SA placeholder $WR <file>` (docx, xlsx, pdf, rtf) or a neutral file of the same type. Never delete a file that code loads. Specs or docs with no personal data stay as they are.
 - **Other people's names** in code comments, docs, seeds and fixtures (real customers, colleagues, the author outside git metadata) become placeholders (`Person One`, `Customer A`). Public figures, companies, library authors and third-party license notices stay.
 - **`phone`, `public-ip`, `generic-secret`**: redact if real. Leave fixtures (`555` numbers, documentation IP ranges, test passwords).
 - **Author metadata** (`package.json` author, `pyproject` authors, `LICENSE` holder, `CODEOWNERS`, `FUNDING.yml`, `.mailmap`): use the placeholders already assigned in `$WR/redactions.json`.
@@ -133,7 +135,7 @@ One line per file: what was removed or rewritten. Renames (old → new name).
 
 ## Redactions
 | Category | Masked original | Placeholder | Occurrences | Files |
-Files renamed. Files deleted for personal data.
+Files renamed. Documents replaced by placeholders (file and reason). Files deleted for personal data.
 
 ## Tests coupled to PII
 | Test (file › name) | Depended on | How it broke | Fix |

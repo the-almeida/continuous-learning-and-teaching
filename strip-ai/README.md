@@ -25,7 +25,7 @@ The original project is never modified. Everything happens in a temp copy.
    - Home paths become `/home/user`.
    - CPF and CNPJ get fakes with valid check digits.
    - API keys, tokens, private keys and remote DB passwords become `REDACTED`.
-   - Documents with personal data (a CV, a customer CSV) are removed.
+   - Documents with personal data (a CV, a customer spreadsheet) keep their name and type, but their content is replaced by a placeholder. Code that loads them still works. Placeholders can be generated for `.docx`, `.xlsx`, `.pdf` and `.rtf`. Other formats are flagged so Claude writes a neutral file of the same type.
 6. **Re-runs the checks.** Any new failure is fixed in the test data, never by skipping a test, and recorded in the report's "Tests coupled to PII" table.
 7. **Zips.** The script refuses to zip while AI files, env files with values or high-confidence PII remain.
 
@@ -83,5 +83,5 @@ It prints a `workRoot`. Then run `strip`, `scan`, `redact`, `zip` and `cleanup` 
 ## Limits
 
 - Names are found from git metadata (commit authors, `git config`, remote owner), the OS user and `package.json`. Other people's names in comments or seeds rely on Claude's review in step 5, not on a pattern.
-- Text files over 2 MB and binary files are not scanned. Documents (pdf, docx, xlsx, csv, db) are flagged for review.
+- Text files over 2 MB and binary files other than documents are not scanned. PDF text extraction is best effort: fonts with custom encodings can hide text from the script, so documents with no detected data are still flagged for Claude to review.
 - Archives are plain ZIP (no ZIP64): up to 65,534 files and 4 GB.

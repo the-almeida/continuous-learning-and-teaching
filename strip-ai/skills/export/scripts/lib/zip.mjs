@@ -32,6 +32,10 @@ function dosDateTime(date) {
  * entries: [{ name: 'root/dir/file.txt', data: Buffer, mode: 0o644, mtime: Date }]
  */
 export function writeZip(outFile, entries) {
+  fs.writeFileSync(outFile, buildZip(entries))
+}
+
+export function buildZip(entries) {
   if (entries.length >= 0xffff) throw new Error(`Too many files for a non-ZIP64 archive: ${entries.length}`)
   const chunks = []
   const central = []
@@ -85,12 +89,13 @@ export function writeZip(outFile, entries) {
   end.writeUInt16LE(entries.length, 10)
   end.writeUInt32LE(centralSize, 12)
   end.writeUInt32LE(offset, 16)
-  fs.writeFileSync(outFile, Buffer.concat([...chunks, ...central, end]))
+  return Buffer.concat([...chunks, ...central, end])
 }
 
-/** Reads entry names, modes and contents back. Used by tests and by the post-zip verification. */
-export function readZip(file) {
-  const buf = fs.readFileSync(file)
+/** Reads entry names, modes and contents from a path or a Buffer. Handles archives made by Office and other tools (sizes come from the central directory). */
+export function readZip(fileOrBuffer) {
+  const buf = Buffer.isBuffer(fileOrBuffer) ? fileOrBuffer : fs.readFileSync(fileOrBuffer)
+  if (buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])) === -1) throw new Error('Not a zip archive')
   const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
   const count = buf.readUInt16LE(eocd + 10)
   let ptr = buf.readUInt32LE(eocd + 16)

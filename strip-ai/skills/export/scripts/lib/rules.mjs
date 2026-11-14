@@ -146,9 +146,25 @@ export function isValidCnpj(value) {
   return true
 }
 
+const FAKE_CPF_PREFIX = '123456'
+const FAKE_CNPJ_PREFIX = '1122'
+
+/**
+ * True for a valid CPF/CNPJ that is not a generated fake. Fakes keep valid
+ * check digits so validators in tests still pass, so they need their own
+ * marker (a fixed prefix), or a second scan would flag them as real.
+ */
+export function isRealCpf(value) {
+  return isValidCpf(value) && !value.replace(/\D/g, '').startsWith(FAKE_CPF_PREFIX)
+}
+
+export function isRealCnpj(value) {
+  return isValidCnpj(value) && !value.replace(/\D/g, '').startsWith(FAKE_CNPJ_PREFIX)
+}
+
 /** Builds a valid, formatted fake CPF from a counter so validation tests keep passing. */
 export function fakeCpf(n) {
-  const base = String(123456000 + n).padStart(9, '0').split('').map(Number)
+  const base = (FAKE_CPF_PREFIX + String(n % 1000).padStart(3, '0')).split('').map(Number)
   for (const len of [9, 10]) {
     let sum = 0
     for (let i = 0; i < len; i++) sum += base[i] * (len + 1 - i)
@@ -159,7 +175,7 @@ export function fakeCpf(n) {
 }
 
 export function fakeCnpj(n) {
-  const base = (String(11222333 + n).padStart(8, '0') + '0001').split('').map(Number)
+  const base = (FAKE_CNPJ_PREFIX + String(n % 10000).padStart(4, '0') + '0001').split('').map(Number)
   const weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
   for (const len of [12, 13]) {
     let sum = 0

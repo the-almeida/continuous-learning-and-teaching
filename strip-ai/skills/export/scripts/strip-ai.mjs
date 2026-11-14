@@ -6,7 +6,8 @@
 //   env-in  <workRoot>           copy the source's git-ignored .env files in, for test runs only
 //   strip   <workRoot>           delete AI tooling files and folders
 //   scan    <workRoot> [--json]  list AI references, PII and secrets (masked)
-//   redact  <workRoot>           replace high-confidence PII and secrets
+//   redact  <workRoot>           replace high-confidence PII and secrets, and documents with personal data
+//   placeholder <workRoot> <file>  replace one document's content with a placeholder of the same type
 //   zip     <workRoot> [--name n] [--out file] [--allow-env path]... [--force]
 //   cleanup <workRoot>           delete the work dir
 //
@@ -20,6 +21,7 @@ import { redactTree } from './lib/redact.mjs'
 import { aiPathToRemove, isEnvFile } from './lib/rules.mjs'
 import { scanTree } from './lib/scan.mjs'
 import { readZip, writeZip } from './lib/zip.mjs'
+import { PLACEHOLDER_FORMATS, placeholderFor } from './lib/documents.mjs'
 
 const WORK_PREFIX = 'strip-ai-'
 const HEAVY_DIRS = new Set([
@@ -185,6 +187,11 @@ function redact(workRoot) {
   print({
     filesChanged: result.changedFiles.length,
     renamed: result.renamed,
+    replacedDocuments: result.replacedDocuments,
+    documentsNeedingAction: result.documentsNeedingAction.map((d) => ({
+      ...d,
+      action: `no ${path.extname(d.file)} placeholder builder (supported: ${PLACEHOLDER_FORMATS.join(', ')}): delete it or write a neutral file of the same type`,
+    })),
     redactions: result.redactions.map((r) => `${r.category}: ${r.original} -> ${r.placeholder} (${r.count}x in ${r.files.length} file(s))`),
     full: path.join(workRoot, 'redactions.json'),
   })
@@ -230,6 +237,16 @@ function zip(workRoot, flags) {
   })
 }
 
+function placeholder(workRoot, rel) {
+  const state = loadState(workRoot)
+  const abs = native(state.workDir, rel ?? '')
+  if (!rel || !fs.existsSync(abs)) fail(`no such file in the work dir: ${rel}`)
+  const data = placeholderFor(rel)
+  if (!data) fail(`no placeholder builder for ${path.extname(rel)} (supported: ${PLACEHOLDER_FORMATS.join(', ')})`)
+  fs.writeFileSync(abs, data)
+  print({ replaced: rel, bytes: data.length })
+}
+
 function cleanup(workRoot) {
   const resolved = path.resolve(workRoot ?? '')
   const inTmp = path.dirname(resolved) === path.resolve(os.tmpdir())
@@ -263,6 +280,7 @@ const commands = {
   strip: () => strip(positional[0]),
   scan: () => scan(positional[0], flags),
   redact: () => redact(positional[0]),
+  placeholder: () => placeholder(positional[0], positional[1]),
   zip: () => zip(positional[0], flags),
   cleanup: () => cleanup(positional[0]),
 }

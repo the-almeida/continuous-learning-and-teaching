@@ -3,12 +3,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  AI_TEXT_RULES, CNPJ_RE, CPF_RE, DOCUMENT_EXTENSIONS, EMAIL_RE, GENERIC_SECRET_RE,
+  AI_TEXT_RULES, CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_SECRET_RE,
   GENERIC_USERS, HOME_PATH_RE, IPV4_RE, LOCKFILES, PHONE_RES, SECRET_RULES, URL_CREDENTIALS_RE,
-  classifyEmail, isEnvFile, isUrlCredentialContext, isFixtureUrlCredential, isPublicIp, isPublishedExample, isValidCnpj,
-  isValidCpf, looksLikeRealSecret, mask,
+  classifyEmail, isEnvFile, isUrlCredentialContext, isFixtureUrlCredential, isPublicIp, isPublishedExample, isRealCnpj,
+  isRealCpf, looksLikeRealSecret, mask,
 } from './rules.mjs'
 import { identityPatterns } from './identity.mjs'
+import { documentText, isDocument, isPlaceholder, personalDataReasons } from './documents.mjs'
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024
 
@@ -83,8 +84,8 @@ export function scanText(relPath, text, identity, aiNames = []) {
       if (kind === 'real') add('email', 'block', m.index, m[0])
       else if (kind === 'fixture') add('email', 'fixture', m.index, m[0])
     }
-    for (const m of text.matchAll(CPF_RE)) if (isValidCpf(m[0])) add('cpf', 'block', m.index, m[0])
-    for (const m of text.matchAll(CNPJ_RE)) if (isValidCnpj(m[0])) add('cnpj', 'block', m.index, m[0])
+    for (const m of text.matchAll(CPF_RE)) if (isRealCpf(m[0])) add('cpf', 'block', m.index, m[0])
+    for (const m of text.matchAll(CNPJ_RE)) if (isRealCnpj(m[0])) add('cnpj', 'block', m.index, m[0])
     for (const m of text.matchAll(HOME_PATH_RE)) {
       if (!GENERIC_USERS.has(m[2].toLowerCase())) add('home-path', 'block', m.index, m[0])
     }
@@ -105,12 +106,18 @@ export function scanText(relPath, text, identity, aiNames = []) {
   return findings
 }
 
+/** Documents with personal data block the zip until replaced; the others get a human-style look. */
+export function scanDocument(relPath, buf, identity) {
+  if (isPlaceholder(relPath, buf)) return []
+  const text = documentText(relPath, buf)
+  const reasons = personalDataReasons(relPath, text, identity)
+  if (reasons.length) return [{ file: relPath, line: 0, rule: 'document-with-pii', severity: 'block', value: reasons.join(', ') }]
+  const note = text === null ? 'content not readable by the script' : 'no personal data detected by the script'
+  return [{ file: relPath, line: 0, rule: 'document', severity: 'review', value: note }]
+}
+
 export function scanPath(relPath, identity) {
   const findings = []
-  const ext = relPath.slice(relPath.lastIndexOf('.') + 1).toLowerCase()
-  if (DOCUMENT_EXTENSIONS.has(ext)) {
-    findings.push({ file: relPath, line: 0, rule: 'document', severity: 'review', value: path.posix.basename(relPath) })
-  }
   for (const { re } of identityPatterns(identity)) {
     if (re.test(relPath)) findings.push({ file: relPath, line: 0, rule: 'identity-in-path', severity: 'block', value: mask(relPath) })
   }
@@ -121,6 +128,7 @@ export function scanTree(workDir, files, identity, aiNames = []) {
   const findings = []
   for (const rel of files) {
     findings.push(...scanPath(rel, identity))
+    if (isDocument(rel)) findings.push(...scanDocument(rel, fs.readFileSync(path.join(workDir, ...rel.split('/'))), identity))
     const text = readText(path.join(workDir, ...rel.split('/')))
     if (text !== null) findings.push(...scanText(rel, text, identity, aiNames))
   }

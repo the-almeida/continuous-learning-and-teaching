@@ -5,11 +5,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   CNPJ_RE, CPF_RE, EMAIL_RE, GENERIC_USERS, HOME_PATH_RE, SECRET_RULES, URL_CREDENTIALS_RE,
-  classifyEmail, isUrlCredentialContext, fakeCnpj, fakeCpf, isFixtureUrlCredential, isPublishedExample, isValidCnpj,
-  isValidCpf, mask,
+  classifyEmail, isUrlCredentialContext, fakeCnpj, fakeCpf, isFixtureUrlCredential, isPublishedExample, isRealCnpj,
+  isRealCpf, mask,
 } from './rules.mjs'
 import { identityPatterns } from './identity.mjs'
 import { readText } from './scan.mjs'
+import { documentText, isDocument, isPlaceholder, personalDataReasons, placeholderFor } from './documents.mjs'
 
 export function createRedactor(identity) {
   const ledger = new Map() // `${category}\0${original}` -> { category, placeholder, files:Set, count }
@@ -41,8 +42,8 @@ export function createRedactor(identity) {
       if (isUrlCredentialContext(whole, offset) || classifyEmail(m) !== 'real') return m
       return record('email', m, known('email', m) ?? `user${++counters.email}@example.com`, file)
     })
-    out = out.replace(CPF_RE, (m) => (isValidCpf(m) ? record('cpf', m, known('cpf', m) ?? fakeCpf(++counters.cpf), file) : m))
-    out = out.replace(CNPJ_RE, (m) => (isValidCnpj(m) ? record('cnpj', m, known('cnpj', m) ?? fakeCnpj(++counters.cnpj), file) : m))
+    out = out.replace(CPF_RE, (m) => (isRealCpf(m) ? record('cpf', m, known('cpf', m) ?? fakeCpf(++counters.cpf), file) : m))
+    out = out.replace(CNPJ_RE, (m) => (isRealCnpj(m) ? record('cnpj', m, known('cnpj', m) ?? fakeCnpj(++counters.cnpj), file) : m))
     out = out.replace(HOME_PATH_RE, (m, prefix, user) =>
       GENERIC_USERS.has(user.toLowerCase()) ? m : prefix + record('home-path', user, 'user', file),
     )
@@ -70,8 +71,22 @@ export function redactTree(workDir, files, identity) {
   const redactor = createRedactor(identity)
   const changedFiles = []
   const renamed = []
+  const replacedDocuments = []
+  const documentsNeedingAction = []
   for (const rel of files) {
     const abs = path.join(workDir, ...rel.split('/'))
+    let replacedReasons = null
+    if (isDocument(rel)) {
+      const buf = fs.readFileSync(abs)
+      const reasons = isPlaceholder(rel, buf) ? [] : personalDataReasons(rel, documentText(rel, buf), identity)
+      if (reasons.length) {
+        const placeholder = placeholderFor(rel)
+        if (placeholder) {
+          fs.writeFileSync(abs, placeholder)
+          replacedReasons = reasons
+        } else documentsNeedingAction.push({ file: rel, reasons })
+      }
+    }
     const text = readText(abs)
     if (text !== null) {
       const next = redactor.redactText(text, rel)
@@ -89,6 +104,8 @@ export function redactTree(workDir, files, identity) {
       fs.renameSync(abs, dest)
       renamed.push({ from: mask(rel), to: newRel })
     }
+    if (replacedReasons) replacedDocuments.push({ file: newRel, reasons: replacedReasons })
   }
-  return { changedFiles, renamed, redactions: redactor.summary() }
+  for (const d of documentsNeedingAction) d.file = redactor.redactName(d.file, d.file)
+  return { changedFiles, renamed, replacedDocuments, documentsNeedingAction, redactions: redactor.summary() }
 }
