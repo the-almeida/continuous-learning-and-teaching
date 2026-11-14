@@ -1,0 +1,14 @@
+{
+  "name": "the-almeida",
+  "description": "Claude Code plugins from the continuous-learning-and-teaching repo.",
+  "owner": {
+    "name": "the-almeida"
+  },
+  "plugins": [
+    {
+      "name": "strip-ai",
+      "source": "./strip-ai",
+      "description": "Export a codebase as a zip with every AI-assistant trace removed and PII/secrets redacted."
+    }
+  ]
+}
