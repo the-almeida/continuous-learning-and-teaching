@@ -1,0 +1,27 @@
+name: strip-ai
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ai-tooling/strip-ai/**"
+      - ".claude-plugin/**"
+      - ".github/workflows/strip-ai.yml"
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      # Every runner has Python, so the zip must be verified by an independent extractor.
+      STRIP_AI_REQUIRE_INDEPENDENT: "1"
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.3.0
+        with:
+          node-version: "lts/jod"
+      - run: node --test "ai-tooling/strip-ai/test/*.test.mjs"
