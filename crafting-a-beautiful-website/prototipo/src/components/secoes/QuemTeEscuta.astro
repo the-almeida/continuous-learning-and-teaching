@@ -1,0 +1,48 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import { Image } from 'astro:assets';
+import retrato from '../../assets/fotos/retrato.jpeg';
+import { ancoraDe } from '../../data/variacoes';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'quem-te-escuta' } };
+}
+
+const { secao } = Astro.props;
+const { Content } = await render(secao);
+const { titulo, apresentacao, destaque, trajetoria, formacoes, estudos } = secao.data;
+---
+
+<section class="secao secao-quem" id={ancoraDe(secao.id)}>
+	<div class="dentro quem">
+		<div class="quem-retrato">
+			<Image class="quem-foto" src={retrato} alt="Poltrona ao lado da janela, no lugar da foto da psicóloga" widths={[320, 640]} sizes="18rem" />
+		</div>
+		<div class="quem-texto">
+			{titulo && <h2>{titulo}</h2>}
+			<p class="quem-apresentacao">{apresentacao}</p>
+			{destaque && <p class="quem-destaque">{destaque}</p>}
+			<details class="quem-trajetoria">
+				<summary>{trajetoria}</summary>
+				<div class="corpo"><Content /></div>
+				{
+					formacoes.length > 0 && (
+						<div class="quem-lista">
+							<h3>Formação</h3>
+							<ul>{formacoes.map((item) => <li>{item}</li>)}</ul>
+						</div>
+					)
+				}
+				{
+					estudos.length > 0 && (
+						<div class="quem-lista">
+							<h3>Estudos complementares</h3>
+							<ul>{estudos.map((item) => <li>{item}</li>)}</ul>
+						</div>
+					)
+				}
+			</details>
+		</div>
+	</div>
+</section>

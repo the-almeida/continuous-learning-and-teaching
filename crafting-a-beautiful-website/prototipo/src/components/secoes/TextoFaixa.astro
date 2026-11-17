@@ -1,0 +1,24 @@
+---
+// A seção de texto do design E, com a citação em faixa própria logo antes dela. A âncora do menu fica na citação, que é
+// onde a seção começa para quem olha, e o texto ganha a sua, com "-texto".
+import type { CollectionEntry } from 'astro:content';
+import { ancoraDe } from '../../data/variacoes';
+import Texto from './Texto.astro';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'texto' } };
+}
+
+const { secao } = Astro.props;
+const ancora = ancoraDe(secao.id);
+---
+
+{
+	secao.data.citacao && (
+		<figure class="faixa-citacao" id={ancora}>
+			<blockquote>{secao.data.citacao}</blockquote>
+			<figcaption>{secao.data.citacaoAutora}</figcaption>
+		</figure>
+	)
+}
+<Texto secao={secao} id={secao.data.citacao ? `${ancora}-texto` : ancora} />

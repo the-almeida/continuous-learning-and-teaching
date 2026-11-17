@@ -1,0 +1,55 @@
+---
+// Rodapé do design E em três colunas, como o do MyEverRoot: a navegação, o nome no centro e o contato.
+import { linkPrivacidade, site } from '../data/site';
+import BotaoWhatsapp from './BotaoWhatsapp.astro';
+
+interface Props {
+	base: string;
+	menu: { rotulo: string; href: string }[];
+}
+
+const { base, menu } = Astro.props;
+---
+
+<footer class="rodape rodape-colunas">
+	<div class="dentro">
+		<div class="rodape-grade">
+			<nav class="rodape-coluna rodape-navegacao" aria-label="Rodapé">
+				<p class="rodape-titulo">Navegação</p>
+				<ul>
+					<li><a class="rodape-link" href={`${base}#inicio`}>Início</a></li>
+					{menu.map((item) => <li><a class="rodape-link" href={item.href}>{item.rotulo}</a></li>)}
+				</ul>
+			</nav>
+			<div class="rodape-coluna rodape-marca">
+				<svg class="rodape-selo" viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
+					<path d="M24 37.5C24 31 24.3 24.6 24 17.5" />
+					<path d="M24 26.4C21.2 25.8 18.6 23.9 17.6 21C17.1 19.6 17.1 18.1 17.4 16.9C20.6 17.6 23.3 20 24 23.4" />
+					<path d="M24.1 21.9C26.4 21 28.6 19 29.4 16.4C29.8 15.2 29.8 13.9 29.6 12.8C26.8 13.6 24.6 15.8 24.1 18.7" />
+					<path d="M18.4 37.6C21.9 36.9 26.2 36.9 29.7 37.7" />
+				</svg>
+				<p class="rodape-nome">{site.nome}</p>
+				<p class="rodape-registro">{site.profissao} · {site.crp}</p>
+			</div>
+			<div class="rodape-coluna rodape-contato">
+				<p class="rodape-titulo">Contato</p>
+				<BotaoWhatsapp>Conversar no WhatsApp</BotaoWhatsapp>
+				<a class="rodape-link rodape-email" href={`mailto:${site.email}`}>{site.email}</a>
+			</div>
+		</div>
+		<p class="rodape-aviso">
+			Este site não oferece atendimento de urgência. Em caso de crise, ligue 188 (CVV, 24 horas) ou procure o serviço de
+			emergência mais próximo.
+		</p>
+		<p class="rodape-pe">{site.nomeCompleto} · {site.profissao} · {site.crp} · Psicoterapia individual online para mulheres ·
+			{/* Por enquanto, a pergunta vai pelo WhatsApp. O Umami conta à parte, para não somar com o botão do rodapé. */}
+			<a class="rodape-link" href={linkPrivacidade} target="_blank" rel="noopener" data-umami-event="privacidade">Política de privacidade</a>
+		</p>
+	</div>
+</footer>
+
+<script>
+	import { fecharMenuAoNavegar } from '../scripts/menu';
+
+	fecharMenuAoNavegar();
+</script>

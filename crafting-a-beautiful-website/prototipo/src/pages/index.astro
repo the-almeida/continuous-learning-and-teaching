@@ -1,0 +1,121 @@
+---
+import '../styles/base.css';
+import '../styles/indice-versoes.css';
+import { getCollection } from 'astro:content';
+import { COPIES, DESIGNS, DESIGN_NOVO, VERSOES } from '../data/variacoes';
+
+const aberturas = await getCollection('secoes', (s) => s.data.tipo === 'abertura');
+const headline = (copy: string) => {
+	const secao = aberturas.find((s) => s.data.variante === copy);
+	return secao && secao.data.tipo === 'abertura' ? secao.data.headline : '';
+};
+---
+
+<!doctype html>
+<html lang="pt-BR">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<title>Variações · Nome Sobrenome</title>
+	</head>
+	<body class="indice">
+		<main class="indice-dentro">
+			<p class="indice-sobre">Site Nome Sobrenome · segunda rodada</p>
+			<h1>Depois da nossa reunião</h1>
+			<p class="indice-intro">
+				O que a gente conversou em 28/10, já aplicado ao site, com o seu texto e o design novo. As fotos ainda são de banco e
+				ficam até você ter as suas.
+			</p>
+			<div class="indice-copies indice-versoes">
+				{
+					VERSOES.map((versao) => (
+						<article class="indice-copy">
+							<h3>{versao.nome}</h3>
+							<p class="indice-headline">{headline(versao.copy)}</p>
+							<p class="indice-linha">{versao.resumo}</p>
+							<a class="indice-abrir" href={`/${DESIGN_NOVO}/${versao.copy}/`}>
+								Ler a versão {versao.nome}
+							</a>
+						</article>
+					))
+				}
+			</div>
+
+			<p class="indice-sobre indice-rodada">Site Nome Sobrenome · primeira rodada</p>
+			<h1>Quatro jeitos de contar o mesmo trabalho</h1>
+			<p class="indice-intro">
+				Cada card é um texto completo do site, com um jeito diferente de escrever. Os designs são aplicações diferentes do
+				mesmo texto, então escolha qualquer um para ler. Comece pelo que mais te chamar atenção, leia até o fim e anote o que fica e o que sai. Vale gostar da
+				abertura de um e do tom de outro.
+			</p>
+
+			<section class="indice-bloco" aria-labelledby="iguais">
+				<h2 id="iguais">O que é igual nos quatro</h2>
+				<p class="indice-intro">
+					Para você não gastar a leitura comparando o que não muda: a linha acima da headline, a sua trajetória no “Quem te
+					escuta”, o fecho “Se chegou até aqui” e as perguntas frequentes são iguais, ou quase, nos quatro textos.
+				</p>
+			</section>
+
+			<section class="indice-bloco" aria-labelledby="os-textos">
+				<h2 id="os-textos">Os textos</h2>
+				<div class="indice-copies">
+					{
+						COPIES.map((copy) => (
+							<article class="indice-copy">
+								<h3>
+									<span class="indice-numero">{copy.id}</span> {copy.nome}
+								</h3>
+								<p class="indice-headline">{headline(copy.id)}</p>
+								<p class="indice-linha">{copy.linha}</p>
+								<nav class="indice-ler" aria-label={`Ler o texto ${copy.nome} em cada design`}>
+									{DESIGNS.map((design) => (
+										<a href={`/${design.id}/${copy.id}/`} title={design.nome}>
+											<span
+												class="indice-amostra"
+												style={`--cor: ${design.cor}; --cor-fundo: ${design.fundo}`}
+												aria-hidden="true"
+											/>
+											{design.id.toUpperCase()}
+											<span class="indice-ler-nome">{design.nome}</span>
+										</a>
+									))}
+								</nav>
+							</article>
+						))
+					}
+				</div>
+			</section>
+
+			<section class="indice-bloco" aria-labelledby="os-designs">
+				<h2 id="os-designs">Os designs</h2>
+				<p class="indice-intro">
+					Qualquer design funciona com qualquer texto. Dá para olhar para eles depois, com o texto já escolhido. As
+					fotos são de banco e ficam até você ter as suas.
+				</p>
+				<ul class="indice-designs">
+					{
+						DESIGNS.map((design) => (
+							<li>
+								<span
+									class="indice-amostra"
+									style={`--cor: ${design.cor}; --cor-fundo: ${design.fundo}`}
+									aria-hidden="true"
+								/>
+								<div>
+									<h3>
+										{design.id.toUpperCase()} · {design.nome}
+									</h3>
+									<p>{design.resumo}</p>
+									<p class="indice-ref">Referência: {design.referencia}</p>
+								</div>
+							</li>
+						))
+					}
+				</ul>
+			</section>
+		</main>
+	</body>
+</html>

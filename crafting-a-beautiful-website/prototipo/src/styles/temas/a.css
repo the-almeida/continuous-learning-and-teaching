@@ -1,0 +1,92 @@
+/* Design A · Folha. Linha do myeverroot: cinza e neutro, o verde vem das fotos de plantas. */
+
+[data-design='a'] {
+	--fundo: #f3f2ee;
+	--superficie: #fbfaf7;
+	--faixa: #e8e6e0;
+	--texto: #2b2e2a;
+	--texto-suave: #5b5f59;
+	--linha: #d8d6cf;
+	--acento: #4b6250;
+	--acento-suave: #cdd6c9;
+	--botao: #3e5643;
+	--botao-texto: #f7f6f2;
+	--fonte-titulo: var(--fonte-a-titulo);
+	--fonte-texto: var(--fonte-a-texto);
+	--peso-titulo: 300;
+	--raio: 2px;
+	--tamanho-texto: 15.5px;
+	--largura: 70rem;
+}
+
+[data-design='a'] .abertura-arte::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		linear-gradient(90deg, rgb(243 242 238 / 0.97) 0%, rgb(243 242 238 / 0.9) 36%, rgb(243 242 238 / 0.25) 70%, rgb(243 242 238 / 0) 100%),
+		linear-gradient(0deg, rgb(243 242 238 / 0.85), transparent 35%);
+}
+
+[data-design='a'] .abertura-ancora {
+	font-size: 0.72rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+/* A e C com abertura contida: "Fonte grande, imagem grande" (P1·B27). O B fica grande, para comparar. */
+[data-design='a'] .abertura {
+	min-height: min(calc(100svh - 4.5rem), 44rem);
+}
+
+[data-design='a'] .abertura-headline {
+	font-size: clamp(2rem, 3.6vw, 3rem);
+	font-weight: 300;
+}
+
+[data-design='a'] .secao h2::before {
+	content: '';
+	display: block;
+	width: 1px;
+	height: 2.5rem;
+	margin-bottom: 1.25rem;
+	background: var(--acento);
+}
+
+[data-design='a'] .secao-quem {
+	background: var(--superficie);
+}
+
+[data-design='a'] .secao-o-que-nos-adoece {
+	background: var(--faixa);
+}
+
+[data-design='a'] .card {
+	padding: 1.25rem 0 0;
+	background: none;
+	border: 0;
+	border-top: 1px solid var(--texto);
+	border-radius: 0;
+}
+
+[data-design='a'] .quem-foto {
+	filter: saturate(0.85);
+}
+
+[data-design='a'] .convite-arte::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: rgb(243 242 238 / 0.82);
+}
+
+[data-design='a'] .convite .corpo {
+	font-weight: 300;
+	font-style: italic;
+}
+
+@media (max-width: 48rem) {
+	[data-design='a'] .abertura-arte::after {
+		background: linear-gradient(0deg, rgb(243 242 238 / 0.97) 45%, rgb(243 242 238 / 0.75) 72%, rgb(243 242 238 / 0.15));
+	}
+}

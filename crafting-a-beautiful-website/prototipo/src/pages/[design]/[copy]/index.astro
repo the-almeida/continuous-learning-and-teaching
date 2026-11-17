@@ -1,0 +1,51 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import { COPIES, DESIGNS, DESIGN_NOVO, VERSOES, ancoraDe } from '../../../data/variacoes';
+import { site } from '../../../data/site';
+import Abertura from '../../../components/secoes/Abertura.astro';
+import Abordagem from '../../../components/secoes/Abordagem.astro';
+import Aprofundamento from '../../../components/secoes/Aprofundamento.astro';
+import Convite from '../../../components/secoes/Convite.astro';
+import Perguntas from '../../../components/secoes/Perguntas.astro';
+import QuemTeEscuta from '../../../components/secoes/QuemTeEscuta.astro';
+import QuemTeEscutaFios from '../../../components/secoes/QuemTeEscutaFios.astro';
+import Texto from '../../../components/secoes/Texto.astro';
+import TextoFaixa from '../../../components/secoes/TextoFaixa.astro';
+
+export function getStaticPaths() {
+	return [
+		...DESIGNS.flatMap((design) => COPIES.map((copy) => ({ params: { design: design.id, copy: copy.id } }))),
+		...VERSOES.map(({ copy }) => ({ params: { design: DESIGN_NOVO, copy } })),
+	];
+}
+
+const { design, copy } = Astro.params;
+const base = `/${design}/${copy}/`;
+const secoes = (await getCollection('secoes', (s) => s.data.variante === copy)).sort((a, b) => a.id.localeCompare(b.id));
+const perguntas = (await getCollection('perguntas')).sort((a, b) => a.data.ordem - b.data.ordem);
+const menu = secoes.flatMap((s) => ('menu' in s.data && s.data.menu ? [{ rotulo: s.data.menu, href: `${base}#${ancoraDe(s.id)}` }] : []));
+---
+
+<Base titulo={`${site.nome} · ${site.profissao} online para mulheres`} descricao={site.descricao} design={design} copy={copy} menu={menu}>
+	{
+		secoes.map((secao) => {
+			switch (secao.data.tipo) {
+				case 'abertura':
+					return <Abertura secao={secao as never} design={design} />;
+				case 'abordagem':
+					return <Abordagem secao={secao as never} design={design} />;
+				case 'quem-te-escuta':
+					return design === DESIGN_NOVO ? <QuemTeEscutaFios secao={secao as never} base={base} /> : <QuemTeEscuta secao={secao as never} />;
+				case 'texto':
+					return design === DESIGN_NOVO ? <TextoFaixa secao={secao as never} /> : <Texto secao={secao as never} />;
+				case 'aprofundamento':
+					return <Aprofundamento secao={secao as never} base={base} design={design} />;
+				case 'perguntas':
+					return <Perguntas secao={secao as never} perguntas={perguntas} rascunho={design !== DESIGN_NOVO} />;
+				case 'convite':
+					return <Convite secao={secao as never} design={design} />;
+			}
+		})
+	}
+</Base>

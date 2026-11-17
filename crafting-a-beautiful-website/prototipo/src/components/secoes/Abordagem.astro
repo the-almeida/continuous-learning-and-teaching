@@ -1,0 +1,41 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import { DESIGN_NOVO, ancoraDe } from '../../data/variacoes';
+import Arte from '../Arte.astro';
+import Icone from '../Icone.astro';
+import IconeDesenhado from '../IconeDesenhado.astro';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'abordagem' } };
+	design: string;
+}
+
+const { secao, design } = Astro.props;
+const { Content } = await render(secao);
+const icones = ['sistema', 'ideias', 'marcas', 'cuidado'] as const;
+const desenhados = ['vinculos', 'clareza', 'reverbera', 'lotus'] as const;
+---
+
+<section class="secao secao-abordagem" id={ancoraDe(secao.id)}>
+	<div class="dentro">
+		<div class="abordagem-topo">
+			<div>
+				{secao.data.titulo && <h2>{secao.data.titulo}</h2>}
+				<div class="corpo"><Content /></div>
+			</div>
+			<div class="abordagem-arte"><Arte design={design} lugar="abordagem" /></div>
+		</div>
+		<ul class="cards">
+			{
+				secao.data.cards.map((card, indice) => (
+					<li class="card">
+						{design === DESIGN_NOVO ? <IconeDesenhado nome={desenhados[indice % desenhados.length]} /> : <Icone nome={icones[indice % icones.length]} />}
+						<h3>{card.titulo}</h3>
+						<p>{card.texto}</p>
+					</li>
+				))
+			}
+		</ul>
+	</div>
+</section>

@@ -1,0 +1,70 @@
+---
+import { site, telefoneWhatsapp } from '../data/site';
+import BotaoWhatsapp from './BotaoWhatsapp.astro';
+import IconeWhatsapp from './IconeWhatsapp.astro';
+
+interface Props {
+	base: string;
+	itens: { rotulo: string; href: string }[];
+	rotuloWhatsapp?: string;
+	// O menu do celular em tela cheia, com o botão de fechar (design E).
+	menuCheio?: boolean;
+}
+
+const { base, itens, rotuloWhatsapp, menuCheio = false } = Astro.props;
+---
+
+<header class="cabecalho">
+	{/* No design E, o nome leva ao início com a rolagem suave, como o "Início" do rodapé. */}
+	<a class="marca" href={menuCheio ? `${base}#inicio` : base}>
+		<span class="marca-nome">{site.nome}</span>
+		<span class="marca-registro"><span>{site.profissao} ·</span> <span>{site.crp}</span></span>
+	</a>
+	<nav class="menu" aria-label="Seções">
+		<details class="menu-celular">
+			<summary>Menu</summary>
+			{
+				menuCheio ? (
+					<div class="menu-cheio">
+						<div class="menu-cheio-topo">
+							<BotaoWhatsapp classe="menu-cheio-whatsapp" rotulo={rotuloWhatsapp}>
+								<span class="cabecalho-whatsapp-texto">Conversar no WhatsApp</span>
+								<span class="cabecalho-whatsapp-telefone">
+									<IconeWhatsapp classe="cabecalho-whatsapp-icone" />
+									{telefoneWhatsapp}
+								</span>
+							</BotaoWhatsapp>
+							<button class="menu-fechar" type="button">Fechar</button>
+						</div>
+						<div class="menu-cheio-lista">
+							<p class="menu-cheio-rotulo" id="menu-cheio-rotulo">Navegação</p>
+							<ul aria-labelledby="menu-cheio-rotulo">
+								{itens.map((item) => <li><a href={item.href}>{item.rotulo}</a></li>)}
+							</ul>
+						</div>
+					</div>
+				) : (
+					<ul>
+						{itens.map((item) => <li><a href={item.href}>{item.rotulo}</a></li>)}
+					</ul>
+				)
+			}
+		</details>
+		<ul class="menu-largo">
+			{itens.map((item) => <li><a href={item.href}>{item.rotulo}</a></li>)}
+		</ul>
+	</nav>
+	<BotaoWhatsapp classe="cabecalho-whatsapp" rotulo={rotuloWhatsapp}><slot name="whatsapp">WhatsApp</slot></BotaoWhatsapp>
+</header>
+
+<script>
+	import { iniciarMenuCelular } from '../scripts/menu';
+
+	iniciarMenuCelular();
+</script>
+
+<script>
+	import { iniciarSecaoAtual, quandoPronto } from '../scripts/secao-atual';
+
+	quandoPronto(document, () => iniciarSecaoAtual());
+</script>

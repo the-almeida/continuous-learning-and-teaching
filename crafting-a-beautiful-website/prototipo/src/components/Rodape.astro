@@ -1,0 +1,27 @@
+---
+import { site } from '../data/site';
+import BotaoWhatsapp from './BotaoWhatsapp.astro';
+
+interface Props {
+	base: string;
+}
+
+const { base } = Astro.props;
+---
+
+<footer class="rodape">
+	<div class="dentro">
+		<p class="rodape-nome">{site.nome}</p>
+		<p class="rodape-registro">{site.nomeCompleto} · {site.profissao} · {site.crp}</p>
+		<p>Psicoterapia individual online para mulheres.</p>
+		<p class="rodape-contatos">
+			<BotaoWhatsapp classe="rodape-link">WhatsApp</BotaoWhatsapp>
+			<a class="rodape-link" href={`mailto:${site.email}`}>{site.email}</a>
+		</p>
+		<p class="rodape-aviso">
+			Este site não oferece atendimento de urgência. Em caso de crise, ligue 188 (CVV, 24 horas) ou procure o serviço de
+			emergência mais próximo.
+		</p>
+		<p class="rodape-pe"><a class="rodape-link" href={`${base}#topo`}>Voltar ao início</a> · Política de privacidade</p>
+	</div>
+</footer>

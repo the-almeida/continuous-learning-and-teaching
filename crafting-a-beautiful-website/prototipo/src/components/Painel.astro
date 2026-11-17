@@ -1,0 +1,45 @@
+---
+// Barra de troca entre as variações. Não faz parte do site.
+import { COPIES, DESIGNS } from '../data/variacoes';
+
+interface Props {
+	design: string;
+	copy: string;
+	// O resto do caminho depois de /design/copy/, para continuar na mesma página ao trocar.
+	resto?: string;
+}
+
+const { design, copy, resto = '' } = Astro.props;
+const atualDesign = DESIGNS.find((d) => d.id === design);
+const atualCopy = COPIES.find((c) => c.id === copy);
+---
+
+<details class="painel">
+	<summary>
+		<span class="painel-rotulo">Variação</span>
+		<span class="painel-atual">Design {design.toUpperCase()} · {atualDesign?.nome} &nbsp;+&nbsp; Texto {copy} · {atualCopy?.nome}</span>
+	</summary>
+	<div class="painel-corpo">
+		<div class="painel-linha">
+			<span class="painel-titulo">Design</span>
+			{
+				DESIGNS.map((d) => (
+					<a class="painel-opcao" href={`/${d.id}/${copy}/${resto}`} aria-current={d.id === design ? 'true' : undefined}>
+						{d.id.toUpperCase()} · {d.nome}
+					</a>
+				))
+			}
+		</div>
+		<div class="painel-linha">
+			<span class="painel-titulo">Texto</span>
+			{
+				COPIES.map((c) => (
+					<a class="painel-opcao" href={`/${design}/${c.id}/${resto}`} aria-current={c.id === copy ? 'true' : undefined}>
+						{c.id} · {c.nome}
+					</a>
+				))
+			}
+		</div>
+		<p class="painel-nota">{atualDesign?.resumo} {atualCopy?.resumo} <a href="/">Ver todas</a></p>
+	</div>
+</details>

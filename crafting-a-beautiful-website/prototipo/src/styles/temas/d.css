@@ -1,0 +1,115 @@
+/* Design D · Horizonte. O C levado para o "mais cinza, mais neutro" dela: fundo neutro, uma fonte só, com cara de livro, e o sol nascendo na linha do horizonte. */
+
+[data-design='d'] {
+	--fundo: #f8f7f5;
+	--superficie: #ffffff;
+	--faixa: #efedea;
+	--texto: #32312e;
+	--texto-suave: #64615c;
+	--linha: #e3e0db;
+	--acento: #ad5d3a;
+	--acento-suave: #ecd8cc;
+	--botao: #a0532f;
+	--botao-texto: #fffaf6;
+	--fonte-titulo: var(--fonte-c-titulo);
+	--fonte-texto: var(--fonte-c-titulo);
+	--peso-titulo: 400;
+	--raio: 6px;
+	--tamanho-texto: 16.5px;
+	--largura: 68rem;
+}
+
+[data-design='d'] .abertura {
+	min-height: min(calc(100svh - 4.5rem), 44rem);
+	gap: 2.5rem;
+	align-items: end;
+}
+
+/* O sol nascendo: meio disco em cima de uma linha de horizonte que atravessa a abertura. */
+[data-design='d'] .abertura-arte {
+	position: relative;
+	inset: auto;
+	width: min(76vw, 22rem);
+	justify-self: center;
+}
+
+[data-design='d'] .abertura-arte .arte {
+	height: auto;
+	aspect-ratio: 2 / 1;
+	border-radius: 999px 999px 0 0;
+	object-position: 50% 62%;
+}
+
+[data-design='d'] .abertura-arte::after {
+	content: '';
+	position: absolute;
+	right: -100vw;
+	bottom: 0;
+	left: -100vw;
+	height: 1px;
+	background: var(--acento-suave);
+}
+
+[data-design='d'] .abertura-ancora {
+	font-size: 0.875rem;
+}
+
+[data-design='d'] .abertura-headline {
+	font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+}
+
+@media (max-width: 60rem) {
+	[data-design='d'] .abertura {
+		gap: 2rem;
+		padding-top: 2.25rem;
+	}
+}
+
+@media (min-width: 60rem) {
+	/* A abertura termina no horizonte. */
+	[data-design='d'] .abertura {
+		grid-template-columns: 1.1fr 0.9fr;
+		gap: 4rem;
+		min-height: min(calc(100svh - 4.5rem), 36rem);
+		padding-bottom: 0;
+	}
+
+	[data-design='d'] .abertura-arte {
+		order: 2;
+		width: 100%;
+		max-width: 32rem;
+		justify-self: end;
+	}
+
+	[data-design='d'] .abertura-conteudo {
+		padding-bottom: 2.5rem;
+	}
+}
+
+/* O mesmo sol, pequeno, em cima dos títulos. */
+[data-design='d'] .secao h2::before {
+	content: '';
+	display: block;
+	width: 2.75rem;
+	height: 1.375rem;
+	margin-bottom: 1.25rem;
+	border: 1.5px solid var(--acento);
+	border-radius: 2.75rem 2.75rem 0 0;
+}
+
+[data-design='d'] .secao-o-que-nos-adoece,
+[data-design='d'] .secao-perguntas {
+	background: var(--faixa);
+}
+
+[data-design='d'] .quem-foto {
+	aspect-ratio: 1;
+	border-radius: 50%;
+}
+
+[data-design='d'] .convite-arte::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(rgb(248 247 245 / 0.5), rgb(248 247 245 / 0.9));
+}

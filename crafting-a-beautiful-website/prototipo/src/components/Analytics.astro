@@ -1,0 +1,24 @@
+---
+import { site } from '../data/site';
+
+// Umami Cloud, plano grátis: sem cookies e sem dado pessoal, por isso sem banner. É o mesmo do repo oficial, com três
+// medições a mais, para levar para lá junto com a versão aprovada:
+// - cliques: todo link, botão, aba e pergunta da FAQ vira um evento, com o lugar onde foi clicado. O WhatsApp continua
+//   no data-umami-event do BotaoWhatsapp, que o próprio Umami conta;
+// - rolagem: até onde a pessoa desceu na página (25, 50, 75 e 100%) e cada seção que chegou à altura dos olhos;
+// - tempo: quanto tempo a página ficou aberta e visível (10 s, 30 s, 1, 2 e 5 min);
+// - leitura: quanto tempo cada seção ficou na altura dos olhos, com a aba visível (5 s, 15 s, 30 s, 1 e 2 min, somando
+//   as voltas). Na inicial, as seções; nas páginas de "Ler mais", as partes marcadas com data-secao.
+// Sem o ID, nada é enviado. Com ?analytics=debug no endereço, os eventos aparecem no console, com ou sem o ID.
+const id = site.umami;
+---
+
+{/* Sem o # no endereço contado: o Umami conta como visita nova cada troca de endereço feita pelo history, e o menu troca
+   o # para #inicio quando a pessoa volta à abertura. */}
+{id && <script defer src="https://cloud.umami.is/script.js" data-website-id={id} data-exclude-hash="true" />}
+
+<script>
+	import { iniciarAnalytics } from '../scripts/analytics';
+
+	iniciarAnalytics();
+</script>

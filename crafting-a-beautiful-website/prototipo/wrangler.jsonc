@@ -1,0 +1,9 @@
+// Cloudflare Workers com static assets para o protótipo das variações. Sem rota própria: publica no *.workers.dev.
+{
+	"name": "variacoes-site",
+	"compatibility_date": "2026-10-24",
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page"
+	}
+}

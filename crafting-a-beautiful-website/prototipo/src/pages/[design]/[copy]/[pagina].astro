@@ -1,0 +1,55 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import Arte from '../../../components/Arte.astro';
+import BotaoWhatsapp from '../../../components/BotaoWhatsapp.astro';
+import PaginaSaberes from '../../../components/paginas/PaginaSaberes.astro';
+import PaginaSaude from '../../../components/paginas/PaginaSaude.astro';
+import { DESIGNS, DESIGN_NOVO, VERSOES, ancoraDe } from '../../../data/variacoes';
+import { site } from '../../../data/site';
+
+export async function getStaticPaths() {
+	const paginas = await getCollection('paginas');
+	const novas = VERSOES.map(({ copy }) => copy as string);
+	return paginas.flatMap((pagina) => {
+		const nova = novas.includes(pagina.data.variante);
+		return (nova ? [DESIGN_NOVO] : DESIGNS.map((design) => design.id as string)).map((design) => ({
+			params: { design, copy: pagina.data.variante, pagina: pagina.id.split('/')[1] },
+			props: { pagina },
+		}));
+	});
+}
+
+const { design, copy, pagina: slugPagina } = Astro.params;
+const { pagina } = Astro.props;
+const { Content } = await render(pagina);
+const base = `/${design}/${copy}/`;
+const secoes = (await getCollection('secoes', (s) => s.data.variante === copy)).sort((a, b) => a.id.localeCompare(b.id));
+// Nas páginas de "Ler mais", os itens que têm página própria levam a ela, e não à seção na inicial.
+const menu = secoes.flatMap((s) => {
+	if (!('menu' in s.data && s.data.menu)) return [];
+	const href = 'pagina' in s.data && s.data.pagina ? `${base}${s.data.pagina}/` : `${base}#${ancoraDe(s.id)}`;
+	return [{ rotulo: s.data.menu, href }];
+});
+const lugar = slugPagina === 'saude-da-mulher' ? 'saude-da-mulher' : 'saberes-complementares';
+---
+
+<Base titulo={`${pagina.data.titulo} · ${site.nome}`} descricao={pagina.data.descricao} design={design} copy={copy} menu={menu} resto={`${slugPagina}/`}>
+	{
+		design !== DESIGN_NOVO ? (
+			<article class="pagina">
+				<div class="pagina-arte"><Arte design={design} lugar={lugar} prioridade /></div>
+				<div class="dentro">
+					<a class="link-discreto voltar" href={base}>Voltar para o início</a>
+					<h1>{pagina.data.titulo}</h1>
+					<div class="corpo"><Content /></div>
+					<BotaoWhatsapp>Conversar no WhatsApp</BotaoWhatsapp>
+				</div>
+			</article>
+		) : slugPagina === 'saude-da-mulher' ? (
+			<PaginaSaude pagina={pagina} base={base} />
+		) : (
+			<PaginaSaberes pagina={pagina} base={base} />
+		)
+	}
+</Base>

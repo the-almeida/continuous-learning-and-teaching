@@ -1,0 +1,36 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import { ancoraDe } from '../../data/variacoes';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'perguntas' } };
+	perguntas: CollectionEntry<'perguntas'>[];
+	// O aviso de rascunho, para a cliente, nas variações que ela viu no encontro 2. O design E tem o texto da seção.
+	rascunho?: boolean;
+}
+
+const { secao, perguntas, rascunho = true } = Astro.props;
+const { Content } = await render(secao);
+const respostas = await Promise.all(perguntas.map(async (p) => ({ ...p, Resposta: (await render(p)).Content })));
+---
+
+<section class="secao secao-perguntas" id={ancoraDe(secao.id)}>
+	<div class="dentro">
+		{secao.data.titulo && <h2>{secao.data.titulo}</h2>}
+		<div class="corpo"><Content /></div>
+		{rascunho && <p class="perguntas-rascunho">Estas respostas são um rascunho. A gente escolhe as perguntas e ajusta as respostas juntas.</p>}
+		<div class="perguntas-lista">
+			{
+				respostas.map(({ data, Resposta }) => (
+					<details class="pergunta">
+						<summary>{data.pergunta}</summary>
+						<div class="corpo">
+							<Resposta />
+						</div>
+					</details>
+				))
+			}
+		</div>
+	</div>
+</section>

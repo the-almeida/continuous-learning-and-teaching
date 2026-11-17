@@ -1,0 +1,72 @@
+---
+// Página de Saberes do design E: a alquimia sobre o fio do encontro entre a estrutura e a fluidez, o texto dela
+// na ordem dela com rótulos à margem, e as formações ao lado de uma imagem.
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import Arte from '../Arte.astro';
+import BotaoWhatsapp from '../BotaoWhatsapp.astro';
+import Fio from '../Fio.astro';
+import { DESIGN_NOVO } from '../../data/variacoes';
+import { comNegrito, paragrafos, separarFormacao } from '../../lib/copy';
+
+interface Props {
+	pagina: CollectionEntry<'paginas'>;
+	base: string;
+}
+
+const { pagina, base } = Astro.props;
+const { Content } = await render(pagina);
+const { titulo, rotulo, abertura, alquimia, trechos, lados, formacoes } = pagina.data;
+const [ladoEsquerdo = '', ladoDireito = ''] = lados;
+---
+
+<article class="pagina-nova pagina-saberes">
+	<div class="dentro" data-secao="abertura">
+		<a class="link-discreto voltar" href={base}>Voltar para o início</a>
+		{rotulo && <p class="pagina-rotulo">{rotulo}</p>}
+		<h1>{titulo}</h1>
+		{abertura && <p class="pagina-abertura">{abertura}</p>}
+	</div>
+	<div class="encontro" data-secao="alquimia">
+		<div class="dentro">
+			<blockquote class="encontro-frase" set:html={comNegrito(alquimia ?? '')} />
+		</div>
+		<Fio nome="encontro" />
+		<div class="dentro encontro-lados">
+			<p>{ladoEsquerdo}</p>
+			<p>{ladoDireito}</p>
+		</div>
+	</div>
+	<div class="dentro">
+		<div class="trechos">
+			{
+				trechos.map((trecho) => (
+					<section class="trecho" data-secao={trecho.titulo}>
+						<h2>{trecho.titulo}</h2>
+						<div class="trecho-texto">{paragrafos(trecho.texto).map((texto) => <p set:html={comNegrito(texto)} />)}</div>
+					</section>
+				))
+			}
+		</div>
+		<div class="quadro quadro-formacoes" data-secao="formacoes">
+			<div class="quadro-arte"><Arte design={DESIGN_NOVO} lugar="pagina-saberes" /></div>
+			<div class="quadro-texto">
+				<h2>Formações complementares</h2>
+				<ul class="quem-formacao">
+					{
+						formacoes.map(separarFormacao).map(([nome, lugar]) => (
+							<li>
+								<span class="quem-formacao-nome">{nome}</span>
+								{lugar && <span class="quem-formacao-lugar">{lugar}</span>}
+							</li>
+						))
+					}
+				</ul>
+			</div>
+		</div>
+		<div class="pagina-fecho" data-secao="fecho">
+			{pagina.body && <div class="corpo"><Content /></div>}
+			<BotaoWhatsapp>Conversar no WhatsApp</BotaoWhatsapp>
+		</div>
+	</div>
+</article>

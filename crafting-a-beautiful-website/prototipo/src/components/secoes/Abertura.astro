@@ -1,0 +1,208 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import Arte from '../Arte.astro';
+import BotaoWhatsapp from '../BotaoWhatsapp.astro';
+import IconeWhatsapp from '../IconeWhatsapp.astro';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'abertura' } };
+	design: string;
+}
+
+const { secao, design } = Astro.props;
+const { Content } = await render(secao);
+const { ancora, headline, frase, variacoes = [], botao, conhecaAbordagem } = secao.data;
+// A primeira variação sem campos próprios é a abertura da seção. As outras só existem para a cliente comparar, pela
+// troca no canto da foto, que não faz parte do site.
+const outras = variacoes.filter((variacao) => variacao.headline || variacao.texto || variacao.frase);
+// No design E, a frase tem o seu liga/desliga no protótipo e vale para todas as aberturas: a que não tem frase própria
+// usa a primeira que aparece no texto. Nos outros designs, só aparece onde está escrita.
+const fraseComum = design === 'e' ? (frase ?? outras.find((variacao) => variacao.frase)?.frase) : undefined;
+const fraseDe = (propria?: string) => propria ?? fraseComum;
+const nomes = [variacoes.find((variacao) => !variacao.headline && !variacao.texto && !variacao.frase)?.nome ?? 'Principal', ...outras.map((v) => v.nome)];
+---
+
+<section
+	class="abertura"
+	id={design === 'e' ? 'inicio' : 'topo'}
+	data-botao={design === 'e' ? 'fio' : undefined}
+	data-link={design === 'e' ? 'atual' : undefined}
+	data-frase={design === 'e' ? 'etiqueta' : undefined}
+	data-altura={design === 'e' ? 'meio' : undefined}
+	data-sem-trocas={design === 'e' ? true : undefined}
+>
+	<div class="abertura-arte">
+		<Arte design={design} lugar="abertura" prioridade />
+		{fraseDe(frase) && <p class="abertura-frase" data-versao="0">{fraseDe(frase)}</p>}
+		{outras.map((variacao, indice) => fraseDe(variacao.frase) && <p class="abertura-frase" data-versao={indice + 1} hidden>{fraseDe(variacao.frase)}</p>)}
+	</div>
+	<div class="abertura-conteudo">
+		<p class="abertura-ancora">{ancora}</p>
+		<div class="abertura-versao" data-versao="0">
+			<h1 class="abertura-headline">{headline}</h1>
+			{design === 'e' && fraseDe(frase) && <p class="abertura-frase-coluna">{fraseDe(frase)}</p>}
+			<div class="abertura-texto"><Content /></div>
+		</div>
+		{
+			outras.map((variacao, indice) => (
+				<div class="abertura-versao" data-versao={indice + 1} hidden>
+					<h1 class="abertura-headline">{variacao.headline ?? headline}</h1>
+					{design === 'e' && fraseDe(variacao.frase) && <p class="abertura-frase-coluna">{fraseDe(variacao.frase)}</p>}
+					{variacao.texto && <div class="abertura-texto"><p>{variacao.texto}</p></div>}
+				</div>
+			))
+		}
+		<div class="abertura-acoes">
+			{/* No design E, o link da abordagem vem antes do WhatsApp; nos outros, depois. */}
+			{
+				design === 'e' && conhecaAbordagem && (
+					<a class="link-discreto" href="#abordagem">
+						<span class="botao-conteudo">{conhecaAbordagem}</span>
+					</a>
+				)
+			}
+			<BotaoWhatsapp>
+				{
+					design === 'e' ? (
+						<span class="botao-conteudo">
+							<IconeWhatsapp classe="botao-icone" />
+							{botao}
+						</span>
+					) : (
+						botao
+					)
+				}
+			</BotaoWhatsapp>
+			{design !== 'e' && conhecaAbordagem && <a class="link-discreto" href="#abordagem">{conhecaAbordagem}</a>}
+		</div>
+	</div>
+	<div class="trocas">
+	{
+		outras.length > 0 && (
+			<fieldset class="troca-abertura" data-sem-analytics>
+				<legend>Abertura</legend>
+				{nomes.map((nome, indice) => (
+					<label title={nome}>
+						<input type="radio" name="troca-abertura" value={indice} checked={indice === 0} />
+						<span>{nome}</span>
+					</label>
+				))}
+			</fieldset>
+		)
+	}
+	{
+		design === 'e' && (
+			<fieldset class="troca-abertura troca-botoes" data-sem-analytics>
+				<legend>Abordagem</legend>
+				{[
+					['atual', 'Fio embaixo (1)'],
+					['fio', 'Fio embaixo (2)'],
+					['negrito', 'Negrito'],
+					['cheio', 'Cheio'],
+				].map(([valor, nome]) => (
+					<label>
+						<input type="radio" name="troca-link" value={valor} checked={valor === 'atual'} />
+						<span>{nome}</span>
+					</label>
+				))}
+				<label class="troca-botoes-ligado">
+					<input type="checkbox" name="troca-comlink" checked />
+					<span><b class="ligado">Ligado</b><b class="desligado">Desligado</b></span>
+				</label>
+			</fieldset>
+		)
+	}
+	{
+		design === 'e' && (
+			<fieldset class="troca-abertura troca-botoes" data-sem-analytics>
+				<legend>WhatsApp</legend>
+				{[
+					['sublinhado', 'Fio embaixo (1)'],
+					['fio', 'Fio embaixo (2)'],
+					['negrito', 'Negrito'],
+					['cheio', 'Cheio'],
+				].map(([valor, nome]) => (
+					<label>
+						<input type="radio" name="troca-botao" value={valor} checked={valor === 'fio'} />
+						<span>{nome}</span>
+					</label>
+				))}
+				<label class="troca-botoes-ligado">
+					<input type="checkbox" name="troca-whatsapp" checked />
+					<span><b class="ligado">Ligado</b><b class="desligado">Desligado</b></span>
+				</label>
+			</fieldset>
+		)
+	}
+	{
+		design === 'e' && (
+			<fieldset class="troca-abertura troca-botoes" data-sem-analytics>
+				<legend>Frase</legend>
+				{[
+					['atual', 'Etiqueta (1)'],
+					['etiqueta', 'Etiqueta (2)'],
+					['foto', 'Na foto'],
+					['coluna', 'Na coluna'],
+				].map(([valor, nome]) => (
+					<label>
+						<input type="radio" name="troca-frase" value={valor} checked={valor === 'etiqueta'} />
+						<span>{nome}</span>
+					</label>
+				))}
+				<label class="troca-botoes-ligado">
+					<input type="checkbox" name="troca-comfrase" checked />
+					<span><b class="ligado">Ligada</b><b class="desligado">Desligada</b></span>
+				</label>
+			</fieldset>
+		)
+	}
+	{
+		design === 'e' && (
+			<fieldset class="troca-abertura troca-botoes" data-sem-analytics>
+				<legend>Menu</legend>
+				<label>
+					<input type="checkbox" name="troca-secao" checked />
+					<span>Seção atual</span>
+				</label>
+				<label>
+					<input type="checkbox" name="troca-aviso" checked />
+					<span>Aviso no fim</span>
+				</label>
+			</fieldset>
+		)
+	}
+	{
+		design === 'e' && (
+			<fieldset class="troca-abertura troca-botoes troca-altura" data-sem-analytics>
+				<legend>Altura</legend>
+				{[
+					['baixo', 'Embaixo'],
+					['meio', 'Meio'],
+					['cima', 'Em cima'],
+				].map(([valor, nome]) => (
+					<label>
+						<input type="radio" name="troca-altura" value={valor} checked={valor === 'meio'} />
+						<span>{nome}</span>
+					</label>
+				))}
+			</fieldset>
+		)
+	}
+	</div>
+	{
+		design === 'e' && (
+			<button class="trocas-botao" type="button" aria-pressed="false" data-sem-analytics>
+				Exibir variações de design
+			</button>
+		)
+	}
+</section>
+
+<script>
+	import { iniciarSeletores, iniciarTrocaDeAbertura, iniciarTrocasDoDesignE } from '../../scripts/abertura';
+
+	iniciarTrocaDeAbertura();
+	iniciarTrocasDoDesignE();
+	iniciarSeletores();
+</script>

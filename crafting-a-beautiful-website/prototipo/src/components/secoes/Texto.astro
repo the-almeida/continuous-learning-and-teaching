@@ -1,0 +1,22 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import { ancoraDe } from '../../data/variacoes';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'texto' } };
+	// Para quando a âncora da seção fica em outro elemento, como a citação do design E.
+	id?: string;
+}
+
+const { secao, id = ancoraDe(secao.id) } = Astro.props;
+const { Content } = await render(secao);
+---
+
+<section class={`secao secao-${ancoraDe(secao.id)}`} id={id}>
+	<div class="dentro">
+		{secao.data.epigrafe && <p class="epigrafe">{secao.data.epigrafe}</p>}
+		{secao.data.titulo && <h2>{secao.data.titulo}</h2>}
+		<div class="corpo"><Content /></div>
+	</div>
+</section>

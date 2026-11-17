@@ -1,0 +1,12 @@
+---
+import { linkWhatsapp } from '../data/site';
+
+interface Props {
+	classe?: string;
+	rotulo?: string;
+}
+
+const { classe = 'botao', rotulo } = Astro.props;
+---
+
+<a class={classe} href={linkWhatsapp} data-whatsapp target="_blank" rel="noopener" aria-label={rotulo}><slot /></a>

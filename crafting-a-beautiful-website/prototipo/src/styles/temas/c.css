@@ -1,0 +1,102 @@
+/* Design C · Amanhecer. Linha da renatamiguez e da anabeatrizweller: neutro claro, um só tom de sol, paisagem de amanhecer. */
+
+[data-design='c'] {
+	--fundo: #fbf9f6;
+	--superficie: #ffffff;
+	--faixa: #f3eee8;
+	--texto: #33302c;
+	--texto-suave: #69625b;
+	--linha: #e7dfd5;
+	--acento: #ad5d3a;
+	--acento-suave: #f0ddd2;
+	--botao: #a0532f;
+	--botao-texto: #fffaf6;
+	--fonte-titulo: var(--fonte-c-titulo);
+	--fonte-texto: var(--fonte-c-texto);
+	--peso-titulo: 500;
+	--raio: 6px;
+	--tamanho-texto: 14.5px;
+	--largura: 68rem;
+}
+
+[data-design='c'] .abertura {
+	min-height: min(calc(100svh - 4.5rem), 44rem);
+	gap: 2.5rem;
+	align-items: end;
+}
+
+[data-design='c'] .abertura-arte {
+	position: relative;
+	inset: auto;
+	width: min(70vw, 22rem);
+	aspect-ratio: 1;
+	justify-self: center;
+	border-radius: 50%;
+	overflow: hidden;
+	box-shadow: 0 0 0 14px var(--fundo), 0 0 0 15px var(--acento-suave);
+}
+
+[data-design='c'] .abertura-headline {
+	font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+}
+
+/* No celular o círculo menor deixa o botão do WhatsApp na primeira tela. */
+@media (max-width: 60rem) {
+	[data-design='c'] .abertura {
+		gap: 2rem;
+		padding-top: 2.25rem;
+	}
+
+	[data-design='c'] .abertura-arte {
+		width: min(48vw, 12rem);
+		box-shadow: 0 0 0 10px var(--fundo), 0 0 0 11px var(--acento-suave);
+	}
+}
+
+@media (min-width: 60rem) {
+	[data-design='c'] .abertura {
+		grid-template-columns: 1.1fr 0.9fr;
+		align-items: center;
+		gap: 4rem;
+	}
+
+	[data-design='c'] .abertura-arte {
+		order: 2;
+		width: 100%;
+		max-width: 30rem;
+		justify-self: end;
+	}
+
+	[data-design='c'] .abertura-conteudo {
+		align-self: end;
+		padding-bottom: 2rem;
+	}
+}
+
+[data-design='c'] .secao h2::before {
+	content: '';
+	display: block;
+	width: 2.75rem;
+	height: 1.375rem;
+	margin-bottom: 1.25rem;
+	border: 1.5px solid var(--acento);
+	border-bottom: 0;
+	border-radius: 2.75rem 2.75rem 0 0;
+}
+
+[data-design='c'] .secao-o-que-nos-adoece,
+[data-design='c'] .secao-perguntas {
+	background: var(--faixa);
+}
+
+[data-design='c'] .quem-foto {
+	aspect-ratio: 1;
+	border-radius: 50%;
+}
+
+[data-design='c'] .convite-arte::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(rgb(251 249 246 / 0.5), rgb(251 249 246 / 0.88));
+}

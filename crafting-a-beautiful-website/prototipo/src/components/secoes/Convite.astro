@@ -1,0 +1,23 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import Arte from '../Arte.astro';
+import BotaoWhatsapp from '../BotaoWhatsapp.astro';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'convite' } };
+	design: string;
+}
+
+const { secao, design } = Astro.props;
+const { Content } = await render(secao);
+---
+
+<section class="convite">
+	<div class="convite-arte"><Arte design={design} lugar="convite" /></div>
+	<div class="convite-conteudo">
+		{secao.data.ancora && <p class="convite-ancora">{secao.data.ancora}</p>}
+		<div class="corpo"><Content /></div>
+		<BotaoWhatsapp rotulo={secao.data.botaoRotulo}>{secao.data.botao}</BotaoWhatsapp>
+	</div>
+</section>

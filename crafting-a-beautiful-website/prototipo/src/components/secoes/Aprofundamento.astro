@@ -1,0 +1,27 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import { ancoraDe } from '../../data/variacoes';
+import Arte from '../Arte.astro';
+
+interface Props {
+	secao: CollectionEntry<'secoes'> & { data: { tipo: 'aprofundamento' } };
+	base: string;
+	design: string;
+}
+
+const { secao, base, design } = Astro.props;
+const { Content } = await render(secao);
+const lugar = secao.data.pagina === 'saude-da-mulher' ? 'saude-da-mulher' : 'saberes-complementares';
+---
+
+<section class={`secao secao-aprofundamento secao-${ancoraDe(secao.id)}`} id={ancoraDe(secao.id)}>
+	<div class="dentro aprofundamento">
+		<div class="aprofundamento-texto">
+			{secao.data.titulo && <h2>{secao.data.titulo}</h2>}
+			<div class="corpo"><Content /></div>
+			<a class="link-seta" href={`${base}${secao.data.pagina}/`}>{secao.data.linkTexto}</a>
+		</div>
+		<div class="aprofundamento-arte"><Arte design={design} lugar={lugar} /></div>
+	</div>
+</section>

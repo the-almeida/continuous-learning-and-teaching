@@ -1,0 +1,142 @@
+/* Design B · Lilás. Linha do relacoesemterapia: branco e limpo, lilás de leve, desenho de traço no lugar de foto. */
+
+[data-design='b'] {
+	--fundo: #ffffff;
+	--superficie: #ffffff;
+	--faixa: #f7f5fa;
+	--texto: #2a2732;
+	--texto-suave: #655f6e;
+	--linha: #e8e3ef;
+	--acento: #6c5891;
+	--acento-suave: #e7e0f2;
+	--botao: #5d4a83;
+	--botao-texto: #fbfaff;
+	--fonte-titulo: var(--fonte-b-titulo);
+	--fonte-texto: var(--fonte-b-texto);
+	--peso-titulo: 400;
+	--raio: 16px;
+	--tamanho-texto: 15.5px;
+	--largura: 62rem;
+}
+
+[data-design='b'] .abertura {
+	background:
+		radial-gradient(circle at 76% 40%, #f0eaf8 0, #f0eaf8 16%, transparent 40%),
+		radial-gradient(circle at 92% 82%, #f6f2fb 0, transparent 26%),
+		#fff;
+}
+
+[data-design='b'] .abertura-arte {
+	inset: auto clamp(1rem, 7vw, 7rem) auto auto;
+	top: 42%;
+	width: min(40vw, 28rem);
+	transform: translateY(-50%);
+	color: var(--acento);
+}
+
+[data-design='b'] .abertura-arte .arte {
+	height: auto;
+}
+
+[data-design='b'] .abertura-headline {
+	font-size: clamp(2.2rem, 4.8vw, 3.7rem);
+}
+
+[data-design='b'] .secao h2::before {
+	content: '';
+	display: block;
+	width: 2.5rem;
+	height: 3px;
+	margin-bottom: 1.25rem;
+	border-radius: 3px;
+	background: var(--acento-suave);
+}
+
+[data-design='b'] .secao-quem,
+[data-design='b'] .secao-perguntas {
+	background: var(--faixa);
+}
+
+[data-design='b'] .card {
+	background: var(--faixa);
+	border-color: transparent;
+}
+
+[data-design='b'] .secao-quem .card,
+[data-design='b'] .secao-perguntas .pergunta {
+	background: #fff;
+}
+
+[data-design='b'] .pergunta summary {
+	padding-inline: 1.25rem 2.75rem;
+}
+
+[data-design='b'] .pergunta summary::after {
+	right: 1.25rem;
+}
+
+[data-design='b'] .pergunta .corpo {
+	padding-inline: 1.25rem;
+}
+
+[data-design='b'] .quem-foto {
+	border-radius: 999px 999px 16px 16px;
+}
+
+[data-design='b'] .convite {
+	background: var(--acento-suave);
+}
+
+[data-design='b'] .convite-arte {
+	position: relative;
+	inset: auto;
+	max-width: 22rem;
+	margin: 0 auto 2.5rem;
+}
+
+[data-design='b'] .convite-arte .arte {
+	aspect-ratio: 4 / 3;
+	border-radius: var(--raio);
+}
+
+[data-design='b'] .convite .corpo {
+	font-style: italic;
+}
+
+[data-design='b'] .pagina-arte {
+	width: min(100% - 2.5rem, var(--largura));
+	margin: 2.5rem auto 0;
+	color: var(--acento);
+}
+
+[data-design='b'] .pagina-arte .arte {
+	height: auto;
+	max-height: 18rem;
+	border-radius: var(--raio);
+}
+
+[data-design='b'] .pagina-arte .arte-desenho {
+	max-width: 26rem;
+}
+
+@media (max-width: 52rem) {
+	[data-design='b'] .abertura {
+		align-items: end;
+	}
+
+	/* No celular o desenho entra no fluxo, acima do texto: solto atrás dele, encostava no texto das headlines longas. */
+	[data-design='b'] .abertura {
+		align-content: end;
+		gap: 0.5rem;
+		padding-top: 1.5rem;
+	}
+
+	[data-design='b'] .abertura-arte {
+		position: relative;
+		inset: auto;
+		justify-self: center;
+		width: min(56vw, 14rem);
+		transform: none;
+		opacity: 0.55;
+	}
+}

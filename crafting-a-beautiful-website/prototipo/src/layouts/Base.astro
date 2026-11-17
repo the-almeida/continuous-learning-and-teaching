@@ -1,0 +1,88 @@
+---
+import '../styles/base.css';
+import '../styles/temas/a.css';
+import '../styles/temas/b.css';
+import '../styles/temas/c.css';
+import '../styles/temas/d.css';
+import '../styles/temas/e.css';
+import { Font } from 'astro:assets';
+import Analytics from '../components/Analytics.astro';
+import BotaoWhatsapp from '../components/BotaoWhatsapp.astro';
+import Cabecalho from '../components/Cabecalho.astro';
+import Icone from '../components/Icone.astro';
+import IconeWhatsapp from '../components/IconeWhatsapp.astro';
+import Painel from '../components/Painel.astro';
+import Rodape from '../components/Rodape.astro';
+import RodapeColunas from '../components/RodapeColunas.astro';
+import { telefoneWhatsapp } from '../data/site';
+import { DESIGN_NOVO } from '../data/variacoes';
+
+interface Props {
+	titulo: string;
+	descricao: string;
+	design: string;
+	copy: string;
+	menu: { rotulo: string; href: string }[];
+	resto?: string;
+}
+
+const { titulo, descricao, design, copy, menu, resto = '' } = Astro.props;
+const base = `/${design}/${copy}/`;
+const fontes = {
+	a: ['--fonte-a-titulo', '--fonte-a-texto'],
+	b: ['--fonte-b-titulo', '--fonte-b-texto'],
+	c: ['--fonte-c-titulo', '--fonte-c-texto'],
+	// O D usa a Gelasio do C também no texto corrido.
+	d: ['--fonte-c-titulo', '--fonte-c-titulo'],
+	// O E parte do A e fica com as fontes dele.
+	e: ['--fonte-a-titulo', '--fonte-a-texto'],
+} as const;
+const [fonteTitulo, fonteTexto] = fontes[design as keyof typeof fontes];
+const novo = design === DESIGN_NOVO;
+---
+
+<!doctype html>
+<html lang="pt-BR" data-design={design} data-copy={novo ? copy : undefined}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<title>{titulo}</title>
+		<meta name="description" content={descricao} />
+		<Font cssVariable={fonteTitulo} preload />
+		{fonteTexto !== fonteTitulo && <Font cssVariable={fonteTexto} />}
+	</head>
+	<body>
+		{
+			novo ? (
+				<Cabecalho base={base} itens={menu} rotuloWhatsapp={`Conversar no WhatsApp: ${telefoneWhatsapp}`} menuCheio>
+					<Fragment slot="whatsapp">
+						<span class="cabecalho-whatsapp-texto">
+							Conversar<span class="cabecalho-whatsapp-canal"> no WhatsApp</span>
+						</span>
+						<span class="cabecalho-whatsapp-telefone">
+							<IconeWhatsapp classe="cabecalho-whatsapp-icone" />
+							{telefoneWhatsapp}
+						</span>
+					</Fragment>
+				</Cabecalho>
+			) : (
+				<Cabecalho base={base} itens={menu} />
+			)
+		}
+		<main>
+			<slot />
+		</main>
+		{novo ? <RodapeColunas base={base} menu={menu} /> : <Rodape base={base} />}
+		{
+			(design === 'c' || design === 'd') && (
+				<BotaoWhatsapp classe="whatsapp-flutuante" rotulo="Conversar no WhatsApp">
+					<Icone nome="whatsapp" />
+				</BotaoWhatsapp>
+			)
+		}
+		{!novo && <Painel design={design} copy={copy} resto={resto} />}
+		{novo && <Analytics />}
+	</body>
+</html>

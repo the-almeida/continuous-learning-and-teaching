@@ -1,0 +1,19 @@
+/* Índice: as duas versões da segunda rodada, no topo */
+
+.indice-versoes {
+	margin-top: 2rem;
+}
+
+.indice-abrir {
+	padding-top: 0.9rem;
+	border-top: 1px solid var(--linha);
+	color: var(--acento);
+	font-size: 0.92rem;
+	font-weight: 600;
+}
+
+.indice-rodada {
+	margin-top: 4.5rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--texto);
+}
