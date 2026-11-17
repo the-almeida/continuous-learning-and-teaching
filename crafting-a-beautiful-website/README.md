@@ -19,23 +19,25 @@ This folder holds the code of a **real project with a real client**, a clinical 
 
 ## The process, step by step
 
-| When (2026) | Step | Main output |
+Weeks count from the project's own schedule: week 0 is the week right after the kickoff. The whole project, from kickoff to QA, took about nine weeks.
+
+| When | Step | Main output |
 |---|---|---|
-| before Sep | [1. Briefing](#1-briefing) | The real goal: stop explaining her work in layers |
-| before Sep | [2. Proposal](#2-proposal) | 5 stages, 26 to 30 hours, 3 navigable variations |
-| before 7 Sep | [3. Kickoff](#3-kickoff) | Site structure, the rules of the professional council, first copy ideas |
-| 7 Sep | [4. Schedule and infrastructure](#4-schedule-and-infrastructure) | 3 meetings, provisional page live, hosting plan |
-| 18 Sep | [5. Meeting 1: moodboard, voice, FAQ](#5-meeting-1-moodboard-voice-and-faq) | Visual axes, voice rules, spoken FAQ answers |
-| late Sep | [6. Async material](#6-async-material-after-meeting-1) | 11 voice notes, her bio, her photo, a change of visual direction |
-| 23 to 27 Oct | [7. Transcription and extraction](#7-transcription-and-extraction) | Every recording turned into searchable, linked text |
-| 25 Oct | [8. Copy round 1](#8-copy-round-1-four-whole-sites-of-text) | Four complete copies with different lines, a draft FAQ |
-| 25 to 28 Oct | [9. Design round 1](#9-design-round-1-a-navigable-grid) | A prototype with designs A to D × copies 1 to 4 |
-| 28 Oct | [10. Copy review](#10-copy-review-by-a-copywriter) | Outside feedback from a copywriter |
-| 28 Oct | [11. Meeting 2](#11-meeting-2-she-sees-the-site) | Design A and copy 4 chosen, with pieces from the others |
-| 31 Oct to 3 Nov | [12. Round 2](#12-round-2-design-e-and-copy-5) | Design E (A adjusted) and copy 5 (copy 4 adjusted) |
-| 3 to 4 Nov | [13. Fine-tuning in place](#13-fine-tuning-in-place-switchers-and-measurement) | Switchers in the hero, analytics, current-section menu |
-| 4 Nov | [14. QA](#14-qa) | Must-fix list done, the rest waits for her review |
-| Nov | [15. Her review and handover](#15-her-review-and-handover) | Async questions, photographer brief, mirror repo |
+| Before the project | [1. Briefing](#1-briefing) | The real goal: stop explaining her work in layers |
+| Before the project | [2. Proposal](#2-proposal) | 5 stages, 26 to 30 hours, 3 navigable variations |
+| Just before week 0 | [3. Kickoff](#3-kickoff) | Site structure, the rules of the professional council, first copy ideas |
+| Week 0 | [4. Schedule and infrastructure](#4-schedule-and-infrastructure) | 3 meetings, provisional page live, hosting plan |
+| Week 1 | [5. Meeting 1: moodboard, voice, FAQ](#5-meeting-1-moodboard-voice-and-faq) | Visual axes, voice rules, spoken FAQ answers |
+| Weeks 2 and 3 | [6. Async material](#6-async-material-after-meeting-1) | 11 voice notes, her bio, her photo, a change of visual direction |
+| Weeks 6 and 7, over 5 days | [7. Transcription and extraction](#7-transcription-and-extraction) | Every recording turned into searchable, linked text |
+| Week 6, 1 day | [8. Copy round 1](#8-copy-round-1-four-whole-sites-of-text) | Four complete copies with different lines, a draft FAQ |
+| Weeks 6 and 7, over 4 days | [9. Design round 1](#9-design-round-1-a-navigable-grid) | A prototype with designs A to D × copies 1 to 4 |
+| Week 7, the day of meeting 2 | [10. Copy review](#10-copy-review-by-a-copywriter) | Outside feedback from a copywriter |
+| Week 7 | [11. Meeting 2](#11-meeting-2-she-sees-the-site) | Design A and copy 4 chosen, with pieces from the others |
+| Weeks 7 and 8, over 4 days | [12. Round 2](#12-round-2-design-e-and-copy-5) | Design E (A adjusted) and copy 5 (copy 4 adjusted) |
+| Week 8, 2 days | [13. Fine-tuning in place](#13-fine-tuning-in-place-switchers-and-measurement) | Switchers in the hero, analytics, current-section menu |
+| Week 8, 1 day | [14. QA](#14-qa) | Must-fix list done, the rest waits for her review |
+| From week 9 | [15. Her review and handover](#15-her-review-and-handover) | Async questions, photographer brief, mirror repo |
 
 ### 1. Briefing
 
@@ -64,7 +66,7 @@ Decisions that came out of it:
 
 ### 4. Schedule and infrastructure
 
-The schedule became **three meetings** (weeks of 14 Sep, 12 Oct and 2 Nov) with everything else being my work. Week 0 was for putting the domain online with a provisional page, so the address would become a site before any content existed. It also listed, in one table, what depended on her and by when (a short bio, a photo, two or three real WhatsApp messages with clients, her choice of design).
+The schedule became **three meetings** (planned for weeks 1, 5 and 8) with everything else being my work. Meeting 2 ended up happening in week 7. Week 0 was for putting the domain online with a provisional page, so the address would become a site before any content existed. It also listed, in one table, what depended on her and by when (a short bio, a photo, two or three real WhatsApp messages with clients, her choice of design).
 
 Infrastructure, decided in a separate design session:
 
@@ -89,7 +91,7 @@ The densest meeting, prepared as a script with the agenda in order and the mater
 
 ### 6. Async material after meeting 1
 
-In late September she sent **11 WhatsApp voice notes**, a written "about you" text and a photo. In those notes she moved away from the top three of meeting 1, so the three designs follow what she said *after* the meeting, not the ranking from it:
+In the two weeks after meeting 1 she sent **11 WhatsApp voice notes**, a written "about you" text and a photo. In those notes she moved away from the top three of meeting 1, so the three designs follow what she said *after* the meeting, not the ranking from it:
 
 | Design | Name | Direction | Reference |
 |---|---|---|---|
